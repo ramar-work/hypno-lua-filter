@@ -1,0 +1,9 @@
+*.so
+*.o
+*.db
+tmp/
+sites/*
+files/*
+misc/*
+static/*
+dylib

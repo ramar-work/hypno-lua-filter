@@ -1,0 +1,23 @@
+- Always a fuckin' todo file...
+
+
+
+x extract the host from the thing (no port number)
+
+#if 0
+	- try fixing up the Lua backend
+		(easy to do all the other stuff)
+#else
+	- check the host against the routes structure
+	- call the right route (how do you call the home route?)
+#endif
+
+	? can I turn a table to HTML?
+		get some basic queries working
+
+	? get static stuff working
+
+
+
+
+
