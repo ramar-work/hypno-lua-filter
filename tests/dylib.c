@@ -4,7 +4,8 @@
 #include <string.h>
 #include <errno.h>
 
-#define FILTER_C_PRINT(...) fprintf( stderr, "%s:%d: ", __FILE__, __LINE__ ) && fprintf( stderr, __VA_ARGS__ );
+#define FILTER_C_PRINT(...) \
+	fprintf( stderr, "%s:%d: ", __FILE__, __LINE__ ) && fprintf( stderr, __VA_ARGS__ )
 
 int main (int argc, char *argv[]) {
 	void *app = NULL;

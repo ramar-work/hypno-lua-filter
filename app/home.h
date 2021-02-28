@@ -1,5 +1,6 @@
 #include <zhttp.h>
 #include <zhasher.h>
+#include <zrender.h>
 #include <database.h>
 #include <util.h>
 

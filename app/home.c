@@ -3,7 +3,7 @@
 int home( struct HTTPBody *req, struct HTTPBody *res ) {
 
 	//Declare stuff
-	char *query, err[ 2048 ];
+	char *render, *query, err[ 2048 ];
 	memset( err, 0, sizeof( err ) );
 	void *p = NULL;
 	zTable *t = NULL;	
@@ -32,7 +32,15 @@ int home( struct HTTPBody *req, struct HTTPBody *res ) {
 
 	//Dump first, then render
 	lt_dump( t );
-	
+	int renlen = 0;
+	zRender * rz = zrender_init();
+	zrender_set_default_dialect( rz );
+	zrender_set_fetchdata( rz, t );
+	unsigned char *src = read_file( "views/home.tpl", &len, err, sizeof( err ) );	
+//write( 2, src, len );
+	render = (char *)zrender_render( rz, src, strlen((char *)src), &renlen );
+	write( 2, render, renlen );
+	zrender_free( rz );
 
 	//You can choose to return something here or filter
 	char *message = "bob";

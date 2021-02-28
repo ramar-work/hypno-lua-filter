@@ -90,6 +90,17 @@
 #define http_copy_tcontent(ENTITY,VAL) \
 	http_set_record( ENTITY, &(ENTITY)->body, 1, ".", zhttp_dupstr(VAL), strlen(VAL), 1 )
 
+
+#define http_set_formvalue(ENTITY,KEY,VAL,VLEN) \
+	http_set_record( ENTITY, &(ENTITY)->body, 1, KEY, VAL, VLEN, 1 )
+
+#define http_copy_formvalue(ENTITY,KEY,VAL,VLEN) \
+	http_set_record( ENTITY, &(ENTITY)->body, 1, KEY, zhttp_dupblk((unsigned char *)VAL, VLEN), VLEN, 1 )
+
+#define http_copy_tformvalue(ENTITY,KEY,VAL) \
+	http_set_record( ENTITY, &(ENTITY)->body, 1, KEY, zhttp_dupstr(VAL), strlen(VAL), 1 )
+
+
 #define http_set_header(ENTITY,KEY,VAL) \
 	http_set_record( ENTITY, &(ENTITY)->headers, 0, KEY, (unsigned char *)VAL, strlen(VAL), 0 )
 

@@ -6,9 +6,9 @@ It's mostly for testing purposes, but a real app can be written with this toolin
 
 ## Files
 
-app.so - The app in shared library form.
+bin/app.so - The app in shared library form.
 
-dylib.c - Tooling to test the created library.
+tests/dylib.c - Tooling to test the created library.
 
 main.c - The source code of the app.
 

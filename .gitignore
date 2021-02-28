@@ -7,3 +7,8 @@ files/*
 misc/*
 static/*
 dylib
+
+# Keep test files out for now.
+*.png
+*.jpg
+*.txt

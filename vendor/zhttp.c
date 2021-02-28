@@ -163,8 +163,8 @@ unsigned char * zhttp_dupblk( const unsigned char *v, int vlen ) {
 //Generate random characters
 char *zhttp_rand_chars ( int len ) {
 	const char chars[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-	char * a = malloc( len );
-	memset( a, 0, len );
+	char * a = malloc( len + 1 );
+	memset( a, 0, len + 1 );
 	for ( int i = 0; i < len; i ++ ) {
 		a[ i ] = chars[ rand() % sizeof(chars) ];
 	}
@@ -613,21 +613,21 @@ struct HTTPBody * http_parse_response ( struct HTTPBody *entity, char *err, int 
 	entity->headers = entity->body = entity->url = NULL;
 	entity->hlen = hdLen; 
 	entity->host = zhttp_msg_get_value( "Host: ", "\r", entity->msg, hdLen );
-
 	return NULL;
 } 
 
 
+
 //Finalize an HTTP request (really just returns a unsigned char, but this can handle it)
 struct HTTPBody * http_finalize_request ( struct HTTPBody *entity, char *err, int errlen ) {
-	unsigned char *msg = NULL;
-	int msglen = 0;
-	int http_header_len = 0;
+	unsigned char *msg = NULL, *hmsg = NULL;
+	int msglen = 0, hmsglen = 0, http_header_len = 0;
 	int multipart = 0;
 	struct HTTPRecord **headers = entity->headers;
 	struct HTTPRecord **body = entity->body;
 	char http_header_buf[ 2048 ] = { 0 };
 	char http_header_fmt[] = "%s %s %s\r\n";
+	char clen[ 32 ] = {0};
 	const char http_host_header_str[] = "Host: %s";
 	const char http_content_length_header_str[] = "Content-Length: %d";
 	const char http_content_type_header_str[] = "Content-Type: %s";
@@ -648,7 +648,7 @@ struct HTTPBody * http_finalize_request ( struct HTTPBody *entity, char *err, in
 		return NULL;
 	}
 
-	if ( strcmp( entity->method, "POST" ) == 0 || strcmp( entity->method, "PUT" ) == 0 ) {
+	if ( !strcmp( entity->method, "POST" ) || !strcmp( entity->method, "PUT" ) ) {
 		if ( !entity->body && !entity->ctype ) {
 			snprintf( err, errlen, "Content-type not specified for %s request.", entity->method );
 			return NULL;
@@ -682,22 +682,31 @@ struct HTTPBody * http_finalize_request ( struct HTTPBody *entity, char *err, in
 		//multipart is not (but seperated differently)
 		if ( !multipart ) {
 			int n = 0;
-			while ( body && (*body)->field ) {
+			while ( body && *body ) {
 				struct HTTPRecord *r = *body;
+			#if 0
+				zhttp_uchar_join( &msg, &msglen, "&", r->field, "=" ); 
+				zhttp_uchar_join( &msg, &msglen, r->value, r->size - 1 );
+			#else
 				( n ) ? zhttp_append_to_uint8t( &msg, &msglen, (unsigned char *)"&", 1 ) : 0;
 				zhttp_append_to_uint8t( &msg, &msglen, (unsigned char *)r->field, strlen( r->field ) ); 
 				zhttp_append_to_uint8t( &msg, &msglen, (unsigned char *)"=", 1 ); 
 				zhttp_append_to_uint8t( &msg, &msglen, (unsigned char *)r->value, r->size - 1 ); 
-				body++, n++;
+			#endif
+				body++;
 			}
 		}
 		else {
-			while ( body && (*body)->field ) {
+			static const char cdisph[] = "Content-Disposition: " ;
+			static const char cdispt[] = "form-data;" ;
+			static const char nameh[] = "name=";
+			static const char filename[] = "filename=";
+
+			while ( body && *body ) {
 				struct HTTPRecord *r = *body;
-				const char cdisph[] = "Content-Disposition: " ;
-				const char cdispt[] = "form-data;" ;
-				const char nameh[] = "name=";
-				const char filename[] = "filename=";
+			#if 0
+				zhttp_uchar_join( &msg, &msglen, entity->boundary, "\r\n" )
+			#else
 				zhttp_append_to_uint8t( &msg, &msglen, (unsigned char *)entity->boundary, strlen( entity->boundary ) ); 
 				zhttp_append_to_uint8t( &msg, &msglen, (unsigned char *)"\r\n", 2 ); 
 				zhttp_append_to_uint8t( &msg, &msglen, (unsigned char *)cdisph, sizeof( cdisph ) ); 
@@ -709,6 +718,7 @@ struct HTTPBody * http_finalize_request ( struct HTTPBody *entity, char *err, in
 				zhttp_append_to_uint8t( &msg, &msglen, (unsigned char *)"\r\n\r\n", 4 ); 
 				zhttp_append_to_uint8t( &msg, &msglen, (unsigned char *)r->value, r->size ); 
 				zhttp_append_to_uint8t( &msg, &msglen, (unsigned char *)"\r\n", 2 ); 
+			#endif
 				body++;
 			}
 			zhttp_append_to_uint8t( &msg, &msglen, (unsigned char *)entity->boundary, strlen( entity->boundary ) ); 
@@ -716,9 +726,6 @@ struct HTTPBody * http_finalize_request ( struct HTTPBody *entity, char *err, in
 		}
 	}
 
-	char clen[ 32 ] = {0};
-	unsigned char *hmsg = NULL;
-	int hmsglen = 0;
 	entity->clen = msglen - entity->hlen;
 	snprintf( clen, sizeof( clen ), "%d", entity->clen );
 
@@ -732,6 +739,7 @@ struct HTTPBody * http_finalize_request ( struct HTTPBody *entity, char *err, in
 		{ (multipart) ? entity->boundary : "", (multipart) ? ";boundary=\"%s\"\r\n" : "%s\r\n", strcmp(entity->method,"POST") == 0 ? 1 : 0 },
 		{ entity->host, "Host: %s\r\n" },
 	};
+
 	for ( int i = 0; i < sizeof(m)/sizeof(struct t); i++ ) {
 		if ( !m[i].reqd && !m[i].value )
 			continue;
@@ -760,7 +768,7 @@ struct HTTPBody * http_finalize_request ( struct HTTPBody *entity, char *err, in
 
 	free( msg );
 	free( hmsg );
-	free( entity->boundary );
+	//free( entity->boundary );
 	return entity;
 }
 

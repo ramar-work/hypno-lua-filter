@@ -6,7 +6,7 @@ DFLAGS = -g -O0 -fsanitize=address -fsanitize-undefined-trap-on-error -DDEBUG_H
 
 # This works for this
 CFLAGS = -g -O0 -Wall -Werror -Wno-unused -Wno-format-security \
-	-fPIC -std=c99 -Ivendor -Iutil
+	-fPIC -std=c99 -Ivendor
 
 # This works for the actual library
 SFLAGS = -g -O0 -Wall -Werror -Wno-unused -Wno-format-security \
@@ -15,14 +15,17 @@ SFLAGS = -g -O0 -Wall -Werror -Wno-unused -Wno-format-security \
 CC=clang
 
 SRC=vendor/zhttp.c vendor/zwalker.c vendor/database.c vendor/zhasher.c \
-	vendor/zrender.c util/util.c app/home.c main.c
+	vendor/zrender.c vendor/router.c vendor/megadeth.c app/home.c app/lua.c main.c
 
 OBJ=$(SRC:.c=.o)
 
 
 # ...
 main: $(OBJ)
-	$(CC) $(SFLAGS) -shared -o app.so $(OBJ)
+	$(CC) $(SFLAGS) -shared -lsqlite3 -o bin/app.so $(OBJ)
+
+cli: 
+	$(CC) $(DFLAGS) $(CFLAGS) -ldl -lsqlite3 -o bin/harness harness.c vendor/zhttp.c vendor/zwalker.c vendor/megadeth.c
 
 debug: CFLAGS += $(DFLAGS)
 debug: SFLAGS += $(DFLAGS)
@@ -35,3 +38,10 @@ clean:
 dltest:
 	$(CC) -Wall -Werror -ldl -Ivendor -o dylib dylib.c && ./dylib ./app.so app
 
+# test - Compile tests for files in tests/
+test:
+	$(CC) -Wall -Werror -Ivendor -o bin/router vendor/zwalker.c vendor/router.c tests/router-test.c
+
+# test-debug - Compile tests for files in tests/
+test-debug:
+	$(CC) $(DFLAGS) -Wall -Werror -Ivendor -o bin/router vendor/zwalker.c vendor/router.c tests/router-test.c

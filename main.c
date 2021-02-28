@@ -1,25 +1,18 @@
 //First web app built in C
 #include <zhttp.h>
 #include <sys/stat.h>
+#include <router.h>
+#include <megadeth.h>
+
 
 //Include the app files
-#include "app/home.h"
-
-//Define a route
-typedef struct Route {
-
-	const char *name;
-	
-	const char *under;
-
-	int (*exec)( struct HTTPBody *, struct HTTPBody * );
-	
-} Route;
-
+//#include "app/home.h"
+//#include "app/form.h"
+#include "app/lua.h"
 
 
 //Leave only the real hostname...
-int cuthost( char **h ) {
+int cut_host( char **h ) {
 	char *host = *h;
 	while ( *host ) {
 		if ( *host == ':' ) { 
@@ -34,7 +27,7 @@ int cuthost( char **h ) {
 
 
 //Check if the directory exists (and eventually if other stuff exists)
-int direxists( const char *path ) {
+int dir_exists( const char *path ) {
 	struct stat sb = {0};	
 	return ( stat( path, &sb ) == -1 ); 
 }
@@ -50,53 +43,100 @@ int mvc( struct HTTPBody *req, struct HTTPBody *res ) {
 }
 
 
+#if 0
+//Define a route
+typedef struct Route {
+	const char *name;
+	int (*exec)( struct HTTPBody *, struct HTTPBody * );
+} Route;
+
+
 
 //Routes 
 Route routes[] = {
 	// Create a new thing
-	{ "/home", NULL, home }
-, { "/menu", NULL, home }
-, { "/form", NULL, home }
-, { "/catering", NULL, home }
-, { "/blog", NULL, home }
-, { "/robots.txt", NULL, home }
-, { "/sitemap.xml", NULL, home }
-, { "/assets", "*", home }
+	{ "/home", home }
+//, { "/form", form }
+, { "/catering", home }
+, { "/blog", home }
+, { "/robots.txt", home }
+, { "/sitemap.xml", home }
+, { "/assets", home }
+, { NULL }
 };
 
 
 
-//int app ( int fd, struct HTTPBody *req, struct HTTPBody *res, struct cdata *conn ) {
-int app ( struct HTTPBody *req, struct HTTPBody *res ) {
+//
+const char *static_paths[] = { 
+	"/assets"
+, "/robots.txt"
+, "/sitemap.xml" 
+, "/favicon.ico" 
+};
+#endif
 
-	//Clean up host name
-	cuthost( &req->host );
 
-	//Debugging stuff
-	//fprintf( stderr, "** HTTPBODY is below **\n\n" );
-	//print_httpbody( req );
 
-	//Check the domain name
-	if ( !direxists( req->host ) ) {
-		const char error[] = "Directory does not exist.";
-		http_set_status( res, 404 ); 
-		http_set_ctype( res, "text/html" );
-		http_copy_content( res, error, strlen( error ) );
+//
+int check_static ( const char *recvdpath, const char *checkpath ) {
+	//are they the same at all
+	if ( strlen( recvdpath ) < strlen( checkpath ) ) {
 		return 0;
 	}
 
-#if 1
-	//Serve home
-	if ( !home( req, res ) ) {
-		return http_set_error( res, 500, "Failed to execute app." );
+	//check if one contains the other
+	return memcmp( recvdpath, checkpath, strlen( checkpath ) ) == 0; 
+}
+
+
+
+//....
+int app ( struct HTTPBody *req, struct HTTPBody *res ) {
+
+	//Define stuff
+	int status = 0;
+	char err[ 2048 ];
+	memset( err, 0, sizeof( err ) );
+
+	//Clean up host name
+	cut_host( &req->host );
+
+	//Check the domain name
+	if ( !dir_exists( req->host ) ) {
+		return http_error( res, 404, "%s", "Directory does not exist." );
 	}
-#else
-	//Define a message
-	char * message = "<h2>Hello, World!</h2>";
-	http_set_status( res, 200 ); 
-	http_set_ctype( res, "text/html" );
-	http_copy_content( res, message, strlen( message ) );
+
+	//This may need to accept an error 
+	status = lc( req, res, err, sizeof( err ) );
+	if ( !status ) {
+		return 0; 
+	}
+
+fprintf( stderr, "status of lc is %d\n", status );
+#if 0
+	//Check if the requested resource is static
+	for ( const char **path = static_paths; *path; path++ ) {
+		if ( check_static( req->path, *path ) ) {
+			return http_set_error( res, 200, "Would have served a static page." );	
+		}	
+	}
+		
+	//Then check the rest of the routes
+	Route *r = NULL; 
+	for ( Route *rlist = routes; rlist->name; rlist ++ ) {
+		if ( route_resolve( req->path, rlist->name ) ) {
+			if ( !( status = rlist->exec( req, res ) ) ) {
+				return http_error( res, 500, "Failed to execute endpoint at %s\n", rlist->name );
+			}
+		}
+	} 
 #endif
+
+	//Handle default requests...
+	if ( !status ) {
+		return http_error( res, 200, "%s", "<h2>Hello, World!</h2>" );
+	}
 
 	//Return true because it worked
 	return 1;

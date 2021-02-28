@@ -1,0 +1,9 @@
+# Each of the routes can go here
+
+# How do I spell out models or views?
+routes:
+	/home:
+		models:
+		views:
+	/menu:
+	/upload:	

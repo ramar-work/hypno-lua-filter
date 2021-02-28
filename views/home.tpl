@@ -6,10 +6,10 @@
 
 <body>
 	<ul>
-	{{ #home }}
+	{{ #results }}
 		<li>{{ .category }}</li>
 		<li>{{ .header }}</li>
-	{{ /home }}
+	{{ /results }}
 	</ul>
 </body>
 </html>
