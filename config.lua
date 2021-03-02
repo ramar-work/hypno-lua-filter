@@ -7,8 +7,13 @@ return {
 , title = "localhost"
 , root = ""
 ,	routes = {
-		default = { model = "nobody", views = { "a", "b", "c" } }
-	,	home = { model = "nobody", views = { "a", "b", "c" } }
-	,	catering = { model = "nobody", views = { "a", "b", "c" } }
+		["/"] = { model = "single", views = { "single" } }
+	,	["/books"] = { model = "books", views = { "intro", "books", "outro" } }
+	,	["/book"] = { model = { "books", "single-book" }, views = { "intro", "b", "outro" } }
+	,	["/home"] = { 
+			system = "jaundice",
+			model = "nobody", 
+			views = { "a", "b", "c" } 
+		}
 	}
 }

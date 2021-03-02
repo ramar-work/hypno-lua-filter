@@ -12,6 +12,7 @@ int http_error( struct HTTPBody *res, int status, char *fmt, ... ) {
 	http_set_status( res, status ); 
 	http_set_ctype( res, "text/html" );
 	http_copy_content( res, err, strlen( err ) );
+	http_finalize_response( res, err, strlen( err ) );
 	return 0;
 }
 
@@ -60,7 +61,7 @@ unsigned char *read_file ( const char *filename, int *len, char *err, int errlen
 		return NULL;	
 	}
 
-	*len = sb.st_size;
+	*len += sb.st_size;
 	return buf;
 }
 

@@ -222,6 +222,7 @@ struct HTTPBody {
 	struct HTTPRecord **headers;
 	struct HTTPRecord **url;
 	struct HTTPRecord **body;
+	char err[ 2048 ];
 	//int rstatus;  //HEADER_PARSED, URL_PARSED, ...
 };
 
@@ -245,9 +246,11 @@ char *http_set_char( char **, const char * );
 
 void *http_set_record( struct HTTPBody *, struct HTTPRecord ***, int, const char *, unsigned char *, int, int );
 
-int http_set_error ( struct HTTPBody *entity, int status, char *message );
+int http_set_error ( struct HTTPBody *, int, char *);
 
-unsigned char * zhttp_dupblk( const unsigned char *v, int vlen ) ;
+unsigned char * zhttp_dupblk( const unsigned char *, int ) ;
+
+unsigned char *zhttp_append_to_uint8t ( unsigned char **, int *, unsigned char *, int) ;
 
 #ifdef DEBUG_H
  void print_httprecords ( struct HTTPRecord ** );

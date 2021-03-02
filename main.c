@@ -96,8 +96,7 @@ int app ( struct HTTPBody *req, struct HTTPBody *res ) {
 
 	//Define stuff
 	int status = 0;
-	char err[ 2048 ];
-	memset( err, 0, sizeof( err ) );
+	char err[ 2048 ] = { 0 };
 
 	//Clean up host name
 	cut_host( &req->host );
@@ -108,12 +107,10 @@ int app ( struct HTTPBody *req, struct HTTPBody *res ) {
 	}
 
 	//This may need to accept an error 
-	status = lc( req, res, err, sizeof( err ) );
-	if ( !status ) {
+	if ( !( status = lc( req, res ) ) ) {
 		return 0; 
 	}
 
-fprintf( stderr, "status of lc is %d\n", status );
 #if 0
 	//Check if the requested resource is static
 	for ( const char **path = static_paths; *path; path++ ) {

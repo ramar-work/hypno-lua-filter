@@ -105,36 +105,6 @@ int method_is_valid ( char *mstr ) {
 }
 
 
-#if 0
-//Creatively split fields and save based on something
-int split_fields ( struct HTTPBody *req, const char **records ) {
-	for ( char **body = records; *body; body++ ) {
-		if ( index( *body, '=' ) ) { 
-			int a = 0, b = 0, eq = 0, bblen = 0;
-			char aa[ 1024 ] = {0};
-			unsigned char *bb = NULL;
-			for ( char *value = *body; *value; value++ ) {
-				if ( !( eq += ( *value == '=' ) ) ) 
-					aa[ a++ ] = *value;
-				else if ( *value != '=' ) {
-					if ( *value != '@' )
-						bb = (unsigned char *)value, bblen = strlen( value );	
-					else { 
-						if ( !( bb = read_file( ++value, &bblen, err, sizeof( err ) ) ) ) {
-							fprintf( stderr, PP ": couldn't open test file: %s\n", value );	
-							//TODO: Things should be freed here...
-							return 1;
-						}
-					}
-					break;
-				}
-			}
-			http_copy_formvalue( &req, aa, bb, bblen );
-		}
-	}
-}
-#endif
-
 
 int main ( int argc, char * argv[] ) {
 	//Make this
@@ -269,15 +239,11 @@ int main ( int argc, char * argv[] ) {
 		free( arg.body ); 
 	}
 
-//exit( 0 );
 	//Assemble a message from here...
 	if ( !http_finalize_request( &req, err, sizeof( err ) ) ) {
 		fprintf( stderr, "%s\n", err );
 		return 1; 
 	}
-
-	write( 2, req.msg, req.mlen );
-exit( 0 );
 
 	//Load the app, find the symbol and run the code...
 	if ( !( app = dlopen( arg.lib, RTLD_LAZY ) ) ) {
@@ -292,17 +258,23 @@ exit( 0 );
 	}
 
 	if ( !httpfunc( &req, &res ) ) {
-		fprintf( stderr, PP ": HTTP funct '%s' failed to execute: \n", arg.symbol );
+		fprintf( stderr, PP ": HTTP funct '%s' failed to execute\n", arg.symbol );
+		write( 2, res.msg, res.mlen );
 		return 1;
-	}		
+	}
+
+	//Show whatever message should have come out
+	write( 1, res.msg, res.mlen );
+	fflush( stdout );
 
 	if ( dlclose( app ) == -1 ) {
 		fprintf( stderr, PP ": Failed to close application: %s\n", strerror( errno ) );
 		return 1;
 	}
 
-	//After we're done, look at the response
+	//Destroy res, req and anything else allocated
 
+	//After we're done, look at the response
 	return 0;
 }
 

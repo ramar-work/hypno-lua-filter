@@ -9,27 +9,28 @@ CFLAGS = -g -O0 -Wall -Werror -Wno-unused -Wno-format-security \
 	-fPIC -std=c99 -Ivendor
 
 # This works for the actual library
-SFLAGS = -g -O0 -Wall -Werror -Wno-unused -Wno-format-security \
+SFLAGS = -Wall -Werror -Wno-unused -Wno-format-security \
 	-std=c99 -Ivendor -Iutil
 
 CC=clang
 
 SRC=vendor/zhttp.c vendor/zwalker.c vendor/database.c vendor/zhasher.c \
-	vendor/zrender.c vendor/router.c vendor/megadeth.c app/home.c app/lua.c main.c
+	vendor/zrender.c vendor/router.c vendor/megadeth.c app/lua.c main.c
 
 OBJ=$(SRC:.c=.o)
 
 
 # ...
 main: $(OBJ)
-	$(CC) $(SFLAGS) -shared -lsqlite3 -o bin/app.so $(OBJ)
+	$(CC) -DLT_DEVICE=1 $(SFLAGS) -shared -llua -lsqlite3 -o bin/app.so $(OBJ)
 
 cli: 
-	$(CC) $(DFLAGS) $(CFLAGS) -ldl -lsqlite3 -o bin/harness harness.c vendor/zhttp.c vendor/zwalker.c vendor/megadeth.c
+	$(CC) $(CFLAGS) -ldl -lsqlite3 -o bin/harness harness.c vendor/zhttp.c vendor/zwalker.c vendor/megadeth.c
 
 debug: CFLAGS += $(DFLAGS)
 debug: SFLAGS += $(DFLAGS)
-debug: main
+debug: main 
+debug: cli 
 	@printf '' > /dev/null
 
 clean:

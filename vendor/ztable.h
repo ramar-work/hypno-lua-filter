@@ -1,4 +1,4 @@
-//zhasher.h
+//ztable.h
 
 #ifndef _WIN32
  #define _POSIX_C_SOURCE 200809L
@@ -10,14 +10,14 @@
 #include <inttypes.h>
 #include <unistd.h>
 
-#ifndef ZHASHER_H
-#define ZHASHER_H
+#ifndef ZTABLE_H
+#define ZTABLE_H
 
 #ifndef LT_DEVICE
  #define LT_DEVICE 2
 #endif
 
-#define ZHASHER_ERRV_LENGTH 127 
+#define ZTABLE_ERRV_LENGTH 127 
 #define LT_POLYMORPH_BUFLEN 2048
 #define LT_MAX_HASH 7 
 #if 0
@@ -191,14 +191,14 @@
 #endif
 
 enum {
-	ZHASHER_ERR_NONE,
-	ZHASHER_ERR_LT_ALLOCATE,
-	ZHASHER_ERR_LT_OUT_OF_SPACE,
-	ZHASHER_ERR_LT_INVALID_VALUE,
-	ZHASHER_ERR_LT_INVALID_TYPE,
-	ZHASHER_ERR_LT_INVALID_INDEX,
-	ZHASHER_ERR_LT_OUT_OF_SLICE,
-	ZHASHER_ERR_LT_INDEX_MAX,
+	ZTABLE_ERR_NONE,
+	ZTABLE_ERR_LT_ALLOCATE,
+	ZTABLE_ERR_LT_OUT_OF_SPACE,
+	ZTABLE_ERR_LT_INVALID_VALUE,
+	ZTABLE_ERR_LT_INVALID_TYPE,
+	ZTABLE_ERR_LT_INVALID_INDEX,
+	ZTABLE_ERR_LT_OUT_OF_SLICE,
+	ZTABLE_ERR_LT_INDEX_MAX,
 };
 
 //Define a type polymorph with a bunch of things to help type inference
@@ -250,7 +250,7 @@ typedef struct {
  #ifndef ERR_H
   int error;
 	#ifndef ERRV_H
-	char  errmsg[ ZHASHER_ERRV_LENGTH ];
+	char  errmsg[ ZTABLE_ERRV_LENGTH ];
 	#endif 
  #endif
   
@@ -334,6 +334,8 @@ zTable *lt_within_long( zTable *, uint8_t *, int);
 const char *lt_typename (int);
 zTable *lt_copy (zTable *t, int from, int to); 
 #define lt_copy_table(t, start) lt_copy (t, start, t->count )
+#define lt_copy_by_key(t, start) lt_copy (t, lt_geti( t, start ), t->count )
+#define lt_copy_by_index(t, start) lt_copy (t, start, t->count )
 //Table *lt_within_long ( zTable *t, uint8_t *src, int len );
 #ifdef DEBUG_H
  /*This is only enabled when debugging*/

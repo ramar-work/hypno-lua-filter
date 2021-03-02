@@ -37,7 +37,6 @@ int home( struct HTTPBody *req, struct HTTPBody *res ) {
 	zrender_set_default_dialect( rz );
 	zrender_set_fetchdata( rz, t );
 	unsigned char *src = read_file( "views/home.tpl", &len, err, sizeof( err ) );	
-//write( 2, src, len );
 	render = (char *)zrender_render( rz, src, strlen((char *)src), &renlen );
 	write( 2, render, renlen );
 	zrender_free( rz );
