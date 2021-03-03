@@ -265,6 +265,8 @@ int main ( int argc, char * argv[] ) {
 	if ( !httpfunc( &req, &res ) ) {
 		fprintf( stderr, PP ": HTTP funct '%s' failed to execute\n", arg.symbol );
 		write( 2, res.msg, res.mlen );
+		http_free_request( &req );
+		http_free_response( &res );
 		return 1;
 	}
 
@@ -273,6 +275,8 @@ int main ( int argc, char * argv[] ) {
 	fflush( stdout );
 
 	if ( dlclose( app ) == -1 ) {
+		http_free_request( &req );
+		http_free_response( &res );
 		fprintf( stderr, PP ": Failed to close application: %s\n", strerror( errno ) );
 		return 1;
 	}

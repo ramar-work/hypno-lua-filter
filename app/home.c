@@ -1,12 +1,12 @@
 #include "home.h"
 
-int home( struct HTTPBody *req, struct HTTPBody *res ) {
+int home( struct HTTPBody *req, struct HTTPBody *res, zTable **t ) {
 
 	//Declare stuff
 	char *render, *query, err[ 2048 ];
 	memset( err, 0, sizeof( err ) );
 	void *p = NULL;
-	zTable *t = NULL;	
+	zTable *tt = NULL;	
 	int len = 0;
 
 	//Load the SQL file
@@ -15,13 +15,13 @@ int home( struct HTTPBody *req, struct HTTPBody *res ) {
 	}
 
 	//Open the database
-	if ( !( p = db_open( "sites/clutchclt/wall.db", err, sizeof( err ) - 1 ) ) ) {
+	if ( !( p = db_open( "private/wall.db", err, sizeof( err ) - 1 ) ) ) {
 		//return an error
 		return http_set_error( res, 500, err );
 	}
 
 	//Execute the SQL file
-	if ( !( t = db_exec( p, query, NULL, err, sizeof( err ) - 1 ) ) ) {
+	if ( !( tt = db_exec( p, query, NULL, err, sizeof( err ) - 1 ) ) ) {
 		return http_set_error( res, 500, err );
 	}  
 
@@ -31,7 +31,7 @@ int home( struct HTTPBody *req, struct HTTPBody *res ) {
 	}
 
 	//Dump first, then render
-	lt_dump( t );
+	lt_dump( tt );
 	int renlen = 0;
 	zRender * rz = zrender_init();
 	zrender_set_default_dialect( rz );

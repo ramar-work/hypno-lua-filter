@@ -14,6 +14,8 @@ static lua_State * lua_load_libs( lua_State **L ) {
 }
 #endif
 
+
+#if 0
 #define PRETTY_TABS( ct ) \
 	fprintf( stderr, "%s", &"                    "[ 20 - ct ] );
 
@@ -114,6 +116,9 @@ void lua_stackdump ( lua_State *L ) {
 	}
 	return;
 }
+#endif
+
+
 
 static struct mvcmeta_t { 
 	const char *dir; 
@@ -167,7 +172,6 @@ int lua_exec_file( lua_State *L, const char *f, char *err, int errlen ) {
 		return 0;
 	}
 
-#if 1
 	//Load the string, execute
 	if (( lerr = luaL_loadfile( L, f )) != LUA_OK ) {
 	//if (( lerr = luaL_loadstring( L, (char *)ff )) != LUA_OK ) {
@@ -192,7 +196,6 @@ int lua_exec_file( lua_State *L, const char *f, char *err, int errlen ) {
 		return 0;	
 	}
 
-#if 1
 	//Then execute
 	if (( lerr = lua_pcall( L, 0, LUA_MULTRET, 0 ) ) != LUA_OK ) {
 		if ( lerr == LUA_ERRRUN ) 
@@ -213,47 +216,89 @@ int lua_exec_file( lua_State *L, const char *f, char *err, int errlen ) {
 		lua_pop( L, lua_gettop( L ) );
 		return 0;	
 	}
-#endif
-#endif
 
 	return 1;	
 }
 
 
 
+static int ztable_lua_iterator () {
+	return 1;
+}
+
+static int lua_ztable_iterator () {
+	return 1;
+}
+
+
+
+//Convert zTable to Lua table
+int table_to_lua (lua_State *L, int index, zTable *tt) {
+	int a = index;
+	zKeyval *kv = NULL;
+	lt_reset( tt );
+
+	while ( (kv = lt_next( tt )) ) {
+		struct { int t; zhRecord *r; } items[2] = {
+			{ kv->key.type  , &kv->key.v    },
+			{ kv->value.type, &kv->value.v  } 
+		};
+
+		int t=0;
+		for ( int i=0; i<2; i++ ) {
+			zhRecord *r = items[i].r; 
+			t = items[i].t;
+			FPRINTF( "%s\n", ( i ) ? lt_typename( t ) : lt_typename( t ));
+
+			if ( i ) {
+				if (t == LITE_NUL)
+					;
+				else if (t == LITE_USR)
+					lua_pushstring( L, "usrdata received" ); //?
+				else if (t == LITE_TBL) {
+					lua_newtable( L );
+					a += 2;
+				}
+			}
+			if (t == LITE_NON)
+				break;
+			else if (t == LITE_FLT || t == LITE_INT)
+				lua_pushnumber( L, r->vint );				
+			else if (t == LITE_FLT)
+				lua_pushnumber( L, r->vfloat );				
+			else if (t == LITE_TXT)
+				lua_pushstring( L, r->vchar );
+			else if (t == LITE_TRM) {
+				a -= 2;	
+				break;
+			}
+			else if (t == LITE_BLB) {
+				zhBlob *bb = &r->vblob;
+				lua_pushlstring( L, (char *)bb->blob, bb->size );
+			}
+		}
+
+		( t == LITE_NON || t == LITE_TBL || t == LITE_NUL )	? 0 : lua_settable( L, a );
+		//lua_loop( L );
+	}
+
+	FPRINTF( "Done!\n" );
+	return 1;
+}
+
+
 //Convert Lua tables to regular tables
 int lua_to_table( lua_State *L, int index, zTable *t ) {
 	lua_pushnil( L );
-	//static int sd;
-	//FPRINTF( "Current stack depth: %d\n", sd++ );
-
 	while ( lua_next( L, index ) != 0 ) {
 		int kt, vt;
-	#if 0
-		FPRINTF( "key, value: " );
-
-		//This should pop both keys...
-		FPRINTF( "%s, %s\n", lua_typename( L, lua_type(L, -2 )), lua_typename( L, lua_type(L, -1 )));
-
-		//Keys
-		if (( kt = lua_type( L, -2 )) == LUA_TNUMBER )
-			FPRINTF( "key: %lld\n", (long long)lua_tointeger( L, -2 ));
-		else if ( kt  == LUA_TSTRING )
-			FPRINTF( "key: %s\n", lua_tostring( L, -2 ));
-
-		//Values
-		if (( vt = lua_type( L, -1 )) == LUA_TNUMBER )
-			FPRINTF( "val: %lld\n", (long long)lua_tointeger( L, -1 ));
-		else if ( vt  == LUA_TSTRING )
-			FPRINTF( "val: %s\n", lua_tostring( L, -1 ));
-	#endif
 
 		//Get key (remember Lua indices always start at 1.  Hence the minus.
 		if (( kt = lua_type( L, -2 )) == LUA_TNUMBER )
 			lt_addintkey( t, lua_tointeger( L, -2 ) - 1);
-		else if ( kt  == LUA_TSTRING )
+		else if ( kt  == LUA_TSTRING ) {
 			lt_addtextkey( t, (char *)lua_tostring( L, -2 ));
-
+		}
 		//Get value
 		if (( vt = lua_type( L, -1 )) == LUA_TNUMBER )
 			lt_addintvalue( t, lua_tointeger( L, -1 ));
@@ -261,11 +306,8 @@ int lua_to_table( lua_State *L, int index, zTable *t ) {
 			lt_addtextvalue( t, (char *)lua_tostring( L, -1 ));
 		else if ( vt == LUA_TTABLE ) {
 			lt_descend( t );
-			//FPRINTF( "Descending because value at %d is table...\n", -1 );
-			//lua_loop( L );
 			lua_to_table( L, index + 2, t ); 
 			lt_ascend( t );
-			//sd--;
 		}
 
 		//FPRINTF( "popping last two values...\n" );
@@ -281,12 +323,6 @@ int lua_to_table( lua_State *L, int index, zTable *t ) {
 
 
 int is_reserved( const char *a ) {
-	#if 0
-	//for ( const char **b = builtins; *b; b++ ) {
-	for ( struct mvcmeta_t **b = mvcmeta; *b; b++ ) {
-		if ( strcmp( a, *b ) == 0 ) return 1;
-	}
-	#endif
 	for ( int i = 0; i < sizeof( mvcmeta ) / sizeof( struct mvcmeta_t ); i ++ ) {
 		if ( strcmp( a, mvcmeta[i].reserved ) == 0 ) return 1;
 	}
@@ -382,7 +418,7 @@ int load_lua_model( lua_State *L, const char *f, char **err, int errlen ) {
 
 
 //The entry point for a Lua application
-int lc (struct HTTPBody *req, struct HTTPBody *res ) {
+int lua_handler (struct HTTPBody *req, struct HTTPBody *res ) {
 
 	//Define variables and error positions...
 	zTable zc, zm; 
@@ -451,7 +487,6 @@ int lc (struct HTTPBody *req, struct HTTPBody *res ) {
 
 	//Die when unavailable...
 	if ( !croute ) {
-		MDETH( "no route found" );
 		return http_error( res, 404, "Couldn't find path at %s\n", req->path );
 	}
 
@@ -461,44 +496,68 @@ int lc (struct HTTPBody *req, struct HTTPBody *res ) {
 	free_route_list( p.iroute_tlist );	
 	lt_free( zroutes );
 	free( zroutes );
+	lt_free( zconfig );
 #endif
 
 	//Load all models
+	if ( !lt_init( zmodel, NULL, 2048 ) ) {
+		return http_error( res, 500, "Failed to init model table." );
+	}
+
 	luaL_openlibs( L );
 	for ( struct imvc_t **m = pp.imvc_tlist; *m; m++ ) {
 		const char *f = (*m)->file;
 		if ( *f == 'a' ) {
 			fprintf( stderr, "model: %s\n", f );
-			char err[ 2048 ] = { 0 };
+			char err[ 2048 ] = { 0 }, xf[ 1024 ] = { 0 };
+			int tabpop, valcount = 0;
 
-			//The executed environment needs to be sent to whatever (it's the context)
-			//this can be done via a GIANT table (if there are like a bajillion models)
-			//it could also be done by putting values back on the stack...
-			//most likely though, each would need to be global or in another context...
+			//If there are any values, they need to be inserted into Lua env
+			if ( ( tabpop = lt_countall( zmodel ) ) > 1 ) {
+				fprintf( stderr, "ztable has %d elements, so far\n", tabpop ); 
+				table_to_lua( L, 1, zmodel );
+			}
 
 			//Open the file that will execute the model
 			if ( !lua_exec_file( L, f, err, sizeof( err ) ) ) {
 				return http_error( res, 500, "%s", err );
 			}
-	
-			//When successfully executed (or not), return with 
-			//[ `basename f` ] = whatever (could be code, function or something else) 
-#if 0
-			//If this brings back some other real value, fine.  Does not have to be a table...
-			//add the name of whatever was executed as the key, and the value as the value
-			if ( !lua_istable( L, 1 ) ) 
-				0; //we would add whatever values are on the stack to the current table...
-			else {
-				if ( !lua_to_table( L, 1, zmodel ) ) {
-					return http_error( res, 500, "%s", "Failed to convert Lua to zTable" );
-				}
-			}
 
-			//Take values off the stack here...
-			lua_pop( L, 1 );
-#endif
-		} 
+			//When successfully executed, return with: xf = `basename f` or f += 4;
+			memcpy( xf, &f[4], strlen( f ) - 8 );
+			valcount = lua_gettop( L );
+			fprintf( stderr, "Execution of '%s' returned %d values\n", xf, valcount );
+
+			//Any value should be added
+			for ( int vi=1; vi <= valcount; vi++ ) {
+				fprintf( stderr, "Adding value at pos %d from stack.\n", vi );
+				if ( lua_isstring( L, vi ) ) 
+					lt_addtextkey( zmodel, xf ), lt_addtextvalue( zmodel, lua_tostring( L, vi ));
+				else if ( lua_isinteger( L, vi ) || lua_isnumber( L, vi ) ) 
+					lt_addtextkey( zmodel, xf ), lt_addintvalue( zmodel, lua_tonumber( L, vi ));
+				else if ( lua_islightuserdata( L, vi ) || lua_isuserdata( L, vi ) ) 
+					lt_addtextkey( zmodel, xf ), lt_addudvalue( zmodel, lua_touserdata(L, vi ));
+				else if ( lua_istable( L, vi ) ) {
+					//This function does not add any key
+					if ( !lua_to_table( L, vi, zmodel ) ) {
+						//TODO: Free all things
+						return http_error( res, 500, "%s", "Failed to convert Lua to zTable" );
+					}
+				}
+				else {
+					//TODO: We can evenaully handle threads and functions from here...
+					//TODO: Free all things
+					return http_error( res, 500, "%s", "Lua threads and functions as models not supported yet." );
+				}
+				lt_finalize( zmodel );
+				lt_lock( zmodel );
+			}
+			lua_pop( L, valcount );
+		}
 	}
+	lt_lock( zmodel );
+	lt_dump( zmodel );
+	lt_free( zmodel );
 
 #if 0	
 	//Load all views
@@ -522,9 +581,11 @@ int lc (struct HTTPBody *req, struct HTTPBody *res ) {
 			free( src );
 		}
 	}
+#endif
 
 	free_mvc_list( (void **)pp.imvc_tlist );
 
+#if 0
 	//Return the finished message if we got this far
 	res->clen = clen;
 	http_set_status( res, 200 ); 
@@ -537,7 +598,6 @@ int lc (struct HTTPBody *req, struct HTTPBody *res ) {
 	//Destroying everything is kind of tough...
 	free( content );
 #endif
-	lt_free( zconfig );
 	lua_close( L );
 	return 1;
 }
