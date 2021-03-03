@@ -42,7 +42,7 @@
  *
  * ------------------------------------------------------- */
 #include "zwalker.h"
-#include "zhasher.h"
+#include "ztable.h"
 
 #ifndef ZRENDER_H
 #define ZRENDER_H

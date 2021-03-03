@@ -174,12 +174,17 @@ int main ( int argc, char * argv[] ) {
 	}
 
 
-	//Populate the request structure any which way you can
-	req.path = arg.uri;
-	req.ctype = "text/html";
-	req.host = "example.com";
-	req.method = arg.method;
-	req.protocol = arg.protocol;
+	//Populate the request structure.  Normally, one will never populate this from scratch
+	req.path = zhttp_dupstr( arg.uri );
+	req.ctype = zhttp_dupstr( "text/html" );
+	req.host = zhttp_dupstr( "example.com" );
+#if 1
+	req.method = zhttp_dupstr( "GET" );
+	req.protocol = zhttp_dupstr( "HTTP/1.1" );
+#else
+	req.method = zhttp_dupstr( ( !arg.method ) ? "GET" : arg.method );
+	req.protocol = zhttp_dupstr( !arg.protocol ? "HTTP/1.1" : arg.protocol );
+#endif
 
 	//TODO: This is damned ugly...
 	//Add any extra headers
@@ -273,6 +278,8 @@ int main ( int argc, char * argv[] ) {
 	}
 
 	//Destroy res, req and anything else allocated
+	http_free_request( &req );
+	http_free_response( &res );
 
 	//After we're done, look at the response
 	return 0;

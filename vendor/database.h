@@ -39,7 +39,7 @@
  * 
  * ------------------------------------------- */
 #include <zwalker.h>
-#include <zhasher.h>
+#include <ztable.h>
 #include <sqlite3.h>
 
 #if 0

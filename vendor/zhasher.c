@@ -1,5 +1,5 @@
 /* ------------------------------------------- * 
- * zhasher.c
+ * ztable.c
  * ---------
  * A hash table library written in C.
  *
@@ -21,7 +21,7 @@
  * ----
  * 
  * ------------------------------------------- */
-#include "zhasher.h"
+#include "ztable.h"
 
 static const unsigned int lt_hash = 31;
 

@@ -1,6 +1,6 @@
 //mvc.h
 #include "../vendor/zwalker.h"
-#include "../vendor/zhasher.h"
+#include "../vendor/ztable.h"
 #include "util.h"
 #include "loader.h"
 

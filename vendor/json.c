@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <sys/stat.h>
-#include <zhasher.h>
+#include <ztable.h>
 #if 0
 #include "obsidian/parsely.h"
 #include "obsidian/tab.h"

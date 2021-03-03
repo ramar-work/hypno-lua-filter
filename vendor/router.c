@@ -78,27 +78,17 @@ static struct element * create_element () {
 
 //Free a URImap structure
 static void free_urimap ( struct urimap *mmap ) {
-	//free string and list
-	if ( !mmap->listlen ) {
+	if ( !mmap->listlen )
 		return;
-	}
 
-	struct urimap *map = mmap;
-	while ( map->list && *map->list ) {
-		//Destroy all allocated strings
-		char **str = (*map->list)->string;
-		while ( str && *str ) {
-			FPRINTF( "check and free str: %s\n", *str );
+	for ( struct element **e = mmap->list; e && *e; e++ ) {
+		for ( char **str = (*e)->string; str && *str; str++ ) {
 			free( *str );
-			str++;
 		}
-		free( (*map->list)->string );	
-
-		//Destroy each element
-		free( *map->list );
-		map->list++;
+		free( (*e)->string );
+		free( (*e) );	
 	}
-	//free( mmap->list );
+	free( mmap->list );
 }
 
 
@@ -197,11 +187,7 @@ int compare_urimaps ( struct urimap *map1, struct urimap *map2 ) {
 	//...
 	struct element **elist = map1->list; 
 	struct element **ilist = map2->list;
-	FPRINTF( "%s %p (%d elements) & %p (%d elements)\n", __func__, 
-		elist, map1->listlen, ilist, map2->listlen );
-
 	if ( map1->listlen != map2->listlen ) {
-		FPRINTF( "URI map sizes are different (route = %d, URI = %d).\n", map1->listlen, map2->listlen );
 		return 0;
 	}
 
@@ -211,22 +197,17 @@ int compare_urimaps ( struct urimap *map1, struct urimap *map2 ) {
 		if ( action == ACT_SINGLE ) {
 		}
 		else if ( action == ACT_EITHER ) {
-			FPRINTF( "len is: %d\n", (*elist)->len );
 			int match = 0;
 			char *ii = (*ilist)->string[0];
 			for ( int i=0; i < (*elist)->len; i++ ) {
 				char *ee = (*elist)->string[i];
-				FPRINTF( "Checking '%s' & '%s'\n", ii, ee );
 				if ( !ii || !ee ) {
-					FPRINTF( "Optional string expected to match '%s', but was empty.\n", ee );
 					continue;
 				}	
 				else if ( strlen(ii) != strlen(ee) ) {
-					FPRINTF( "Optional string '%s' expected to match '%s', but is a different length.\n", ii, ee );
 					continue;
 				}
 				else if ( memcmp( ii, ee, strlen(ii) ) != 0 ) {
-					FPRINTF( "Optional string '%s' does not match expected string '%s'.\n", ii, ee );
 					continue;
 				}
 				match = 1;
@@ -236,18 +217,15 @@ int compare_urimaps ( struct urimap *map1, struct urimap *map2 ) {
 			}	
 		}
 		else if ( action == ACT_ID ) {
-			FPRINTF( "len is: %d\n", (*elist)->len );
 			char *s = (*ilist)->string[0];				
 			const char *n = (*elist)->mustbe == RE_STRING ? ALPHA : NUMS;
 			int nl = strlen( n );
 			if ( !s ) {
-				FPRINTF( "String passed to ID was empty.\n" );
 				return 0;
 			}
 			if ( (*elist)->mustbe != RE_ANY ) {
 				while ( *s ) {
 					if ( !memchr( n, *s, nl ) ) {
-						FPRINTF( "parameter '%s' did not pass type check.\n", (*ilist)->string[0] );
 						return 0;  
 					}
 					s++;
@@ -258,17 +236,13 @@ int compare_urimaps ( struct urimap *map1, struct urimap *map2 ) {
 			//These should just match one to one
 			char *ii = *(*ilist)->string;
 			char *ee = *(*elist)->string;
-			FPRINTF( "Comparing route stubs '%s' & '%s'\n", ii, ee );
 			if ( !ii ) { 
-				FPRINTF( "Input string expected to match '%s', but was empty.\n", ee );
 				return 0;
 			}
 			else if ( strlen( ii ) != strlen( ee ) ) {
-				FPRINTF( "Input string '%s' expected to match '%s', but is a different length.\n", ii, ee );
 				return 0;
 			}
 			else if ( memcmp( ii, ee, strlen( ee ) ) != 0 ) {
-				FPRINTF( "Input string '%s' does not match expected string '%s'.\n", ii, ee );
 				return 0;
 			}
 		}
@@ -297,8 +271,9 @@ const char * route_resolve ( const char *uri, const char *rname ) {
 	int ulen = strlen( uri );
 
 	//Build URI map for the uri
-	if ( !build_urimap( &urimap, uri ) )
+	if ( !build_urimap( &urimap, uri ) ) {
 		return NULL;
+	}
 
 	//check that we're not just looking for root
 	if ( rlen == 1 && ulen == 1 && *uri == '/' && *rname == '/' ) {
@@ -325,6 +300,7 @@ const char * route_resolve ( const char *uri, const char *rname ) {
 
 	//Destroy the cmap
 	free_urimap( &cmap ); 
+	free_urimap( &urimap ); 
 	return NULL;
 } 
 
@@ -395,7 +371,6 @@ void dump_urimap( struct urimap *map ) {
 	//This exists just for debugging purposes...
 	struct element **a = map->list;
 	while ( *a ) {
-		FPRINTF( "( string=" ); 
 		char **b = (*a)->string;
 		if ( (*a)->len ) {
 			for ( int i=0; i<(*a)->len; i++ ) { fprintf( stderr, "'%s', ", *b ); b++; }

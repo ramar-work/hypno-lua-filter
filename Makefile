@@ -1,22 +1,11 @@
 # ...
 NAME=app
-
-# Eventually we will need to use sanitization
 DFLAGS = -g -O0 -fsanitize=address -fsanitize-undefined-trap-on-error -DDEBUG_H
-
-# This works for this
-CFLAGS = -g -O0 -Wall -Werror -Wno-unused -Wno-format-security \
-	-fPIC -std=c99 -Ivendor
-
-# This works for the actual library
-SFLAGS = -Wall -Werror -Wno-unused -Wno-format-security \
-	-std=c99 -Ivendor -Iutil
-
+CFLAGS = -Wall -Werror -Wno-unused -Wno-format-security -fPIC -std=c99 -Ivendor
+SFLAGS = -Wall -Werror -Wno-unused -Wno-format-security -std=c99 -Ivendor
 CC=clang
-
-SRC=vendor/zhttp.c vendor/zwalker.c vendor/database.c vendor/zhasher.c \
+SRC=vendor/zhttp.c vendor/zwalker.c vendor/database.c vendor/ztable.c \
 	vendor/zrender.c vendor/router.c vendor/megadeth.c app/lua.c main.c
-
 OBJ=$(SRC:.c=.o)
 
 
