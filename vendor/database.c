@@ -109,7 +109,7 @@ zTable *db_exec( void *ptr, const char *query, void **records, char *err, int er
 			lt_descend( t );
 
 			for ( int i=0, len; i < sqlite3_data_count( stmt ); i++ ) {
-				const uint8_t *bytes = sqlite3_column_blob( stmt, i );
+				const unsigned char *bytes = sqlite3_column_blob( stmt, i );
 
 				if ( !lt_addtextkey( t, columns[ i ] ) ) {
 					snprintf( err, errlen, "FAILED TO ADD TEXT KEY\n" );
