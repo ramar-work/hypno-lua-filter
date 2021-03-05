@@ -231,6 +231,23 @@ static int lua_ztable_iterator () {
 }
 
 
+struct ttl_t {
+	lua_State *L;
+	zTable *src;
+};
+
+//retire the old version, use lt_exec_complex...
+//place this on the thing, at index x with key <key> (if null, then simply place
+//all values on the table... and don't worry about it)
+int ttable_to_lua ( lua_State *L, int index, zTable *t ) {
+	
+	t->ptr = L;
+	
+	return 1;
+
+}
+
+
 
 //Convert zTable to Lua table
 int table_to_lua (lua_State *L, int index, zTable *tt) {
@@ -504,19 +521,28 @@ int lua_handler (struct HTTPBody *req, struct HTTPBody *res ) {
 		return http_error( res, 500, "Failed to init model table." );
 	}
 
+	//Open the standard libraries (once)
 	luaL_openlibs( L );
+
+	//Execute each model
 	for ( struct imvc_t **m = pp.imvc_tlist; *m; m++ ) {
 		const char *f = (*m)->file;
 		if ( *f == 'a' ) {
 			fprintf( stderr, "model: %s\n", f );
 			char err[ 2048 ] = { 0 }, xf[ 1024 ] = { 0 };
-			int tabpop, valcount = 0;
+			int valcount = 0;
 
+			#if 1
+				//table_to_lua( L, 1, zmodel );
+			
+			#else
+			int tabpop = 0;
 			//If there are any values, they need to be inserted into Lua env
 			if ( ( tabpop = lt_countall( zmodel ) ) > 1 ) {
 				fprintf( stderr, "ztable has %d elements, so far\n", tabpop ); 
 				table_to_lua( L, 1, zmodel );
 			}
+			#endif
 
 			//Open the file that will execute the model
 			if ( !lua_exec_file( L, f, err, sizeof( err ) ) ) {
@@ -529,7 +555,7 @@ int lua_handler (struct HTTPBody *req, struct HTTPBody *res ) {
 			fprintf( stderr, "Execution of '%s' returned %d values\n", xf, valcount );
 
 			//Any value should be added
-			for ( int vi=1; vi <= valcount; vi++ ) {
+			for ( int vi = 1; vi <= valcount; vi++ ) {
 				fprintf( stderr, "Adding value at pos %d from stack.\n", vi );
 				if ( lua_isstring( L, vi ) ) 
 					lt_addtextkey( zmodel, xf ), lt_addtextvalue( zmodel, lua_tostring( L, vi ));

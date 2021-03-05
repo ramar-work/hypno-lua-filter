@@ -1,1 +1,0 @@
-//typical global data

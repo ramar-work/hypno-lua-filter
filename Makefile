@@ -11,18 +11,9 @@ TARGET=
 
 
 # ...
-c: SRC += app/home.c app/form.c app/books.c app/c.c 
-c: $(OBJ)
-	$(CC) $(CFLAGS) -c -o app/form.o app/form.c
-	$(CC) $(CFLAGS) -c -o app/home.o app/home.c
-	$(CC) $(CFLAGS) -c -o app/books.o app/books.c
-	$(CC) $(CFLAGS) -c -o app/c.o app/c.c
-	$(CC) -DLT_DEVICE=1 $(SFLAGS) -shared -lsqlite3 -o bin/app.so $(OBJ)
-
-
-lua: SRC += app/lua.c
+lua: SRC += lua.c
 lua: $(OBJ)
-	$(CC) $(CFLAGS) -c -o app/lua.o app/lua.c
+	$(CC) $(CFLAGS) -c -o lua.o lua.c
 	$(CC) -DLT_DEVICE=1 $(SFLAGS) -shared -llua -lsqlite3 -o bin/app.so $(OBJ)
 
 
