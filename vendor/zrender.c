@@ -176,11 +176,11 @@ static void free_xmap( struct xmap **map ) {
 //Hmm, this works for tables, but not for any other data structure....
 static void extract_value ( zRender *rz, int hash, struct xmap *xp ) {
 	zKeyval *lt = lt_retkv( rz->userdata, hash );
-	if ( lt->value.type == LITE_TXT && lt->value.v.vchar != NULL )
+	if ( lt->value.type == ZTABLE_TXT && lt->value.v.vchar != NULL )
 		xp->len = strlen( lt->value.v.vchar ), xp->ptr = (unsigned char *)lt->value.v.vchar;
-	else if ( lt->value.type == LITE_BLB )
+	else if ( lt->value.type == ZTABLE_BLB )
 		xp->len = lt->value.v.vblob.size, xp->ptr = lt->value.v.vblob.blob;
-	else if ( lt->value.type == LITE_INT ) {
+	else if ( lt->value.type == ZTABLE_INT ) {
 		char intptr[32] = {0}; 
 		xp->len = snprintf( intptr, sizeof(intptr), "%d", lt->value.v.vint ); 
 		xp->ptr = (unsigned char *)strdup( intptr );

@@ -15,18 +15,15 @@ static lua_State * lua_load_libs( lua_State **L ) {
 #endif
 
 
-#if 0
-#define PRETTY_TABS( ct ) \
-	fprintf( stderr, "%s", &"                    "[ 20 - ct ] );
-
+#ifdef DEBUG_H
 static void lua_dumptable ( lua_State *L, int *pos, int *sd ) {
 	lua_pushnil( L );
-	FPRINTF( "*pos = %d\n", *pos );
+	//FPRINTF( "*pos = %d\n", *pos );
 
 	while ( lua_next( L, *pos ) != 0 ) {
 		//Fancy printing
-		//fprintf( stderr, "%s", &"\t\t\t\t\t\t\t\t\t\t"[ 10 - *sd ] );
-		PRETTY_TABS( *sd );
+		fprintf( stderr, "%s", &"\t\t\t\t\t\t\t\t\t\t"[ 10 - *sd ] );
+		//PRETTY_TABS( *sd );
 		fprintf( stderr, "[%3d:%2d] => ", *pos, *sd );
 
 		//Print both left and right side
@@ -62,15 +59,16 @@ static void lua_dumptable ( lua_State *L, int *pos, int *sd ) {
 				lua_dumptable( L, pos, sd );
 				(*sd) --, (*pos) -= diff;
 			#endif
-				PRETTY_TABS( *sd );
+				//PRETTY_TABS( *sd );
+				fprintf( stderr, "%s", &"\t\t\t\t\t\t\t\t\t\t"[ 10 - *sd ] );
 				fprintf( stderr, "}" );
 			}
 
 			fprintf( stderr, "%s", ( i == -2 ) ? " -> " : "\n" );
 			//PRETTY_TABS( *sd );
 		}
-		getchar();
-		FPRINTF( "Popping key\n" );
+		//getchar();
+		//FPRINTF( "Popping key\n" );
 		lua_pop( L, 1 );
 	}
 	return;
@@ -79,8 +77,10 @@ static void lua_dumptable ( lua_State *L, int *pos, int *sd ) {
 
 void lua_stackdump ( lua_State *L ) {
 	//No top
-	if ( lua_gettop( L ) == 0 )
+	if ( lua_gettop( L ) == 0 ) {
+		FPRINTF( "No values on stack...\n" );
 		return;
+	}
 
 	//Loop again, but show the value of each key on the stack
 	for ( int pos = 1; pos <= lua_gettop( L ); pos++ ) {
@@ -178,7 +178,7 @@ int lua_exec_file( lua_State *L, const char *f, char *err, int errlen ) {
 		if ( lerr == LUA_ERRSYNTAX )
 			len = snprintf( err, errlen, "Syntax error at %s: ", f );
 		else if ( lerr == LUA_ERRMEM )
-			len = snprintf( err, errlen, "zWalkerory allocation error at %s: ", f );
+			len = snprintf( err, errlen, "Memory allocation error at %s: ", f );
 	#ifdef LUA_53
 		else if ( lerr == LUA_ERRGCMM )
 			len = snprintf( err, errlen, "GC meta-method error at %s: ", f );
@@ -221,33 +221,116 @@ int lua_exec_file( lua_State *L, const char *f, char *err, int errlen ) {
 }
 
 
+struct ttl_t {
+	lua_State *state;
+	short *ti, index;
+};
 
-static int ztable_lua_iterator () {
-	return 1;
-}
 
 static int lua_ztable_iterator () {
 	return 1;
 }
 
 
-struct ttl_t {
-	lua_State *L;
-	zTable *src;
-};
+static int ztable_lua_iterator ( zKeyval *kv, int i, void *p ) {
+	struct ttl_t *x = (struct ttl_t *)p; 
+	zhValue k = kv->key, v = kv->value;
+	x->index = i;
+	//FPRINTF( "{ .ptr= %p, .tindex= %d, .index= %d },\n", x->state, *x->ti, i );
+
+	//Push key 
+	if ( k.type == ZTABLE_NON )
+		return 0;	
+	else if ( k.type == ZTABLE_INT )
+		lua_pushnumber( x->state, k.v.vint );				
+	else if ( k.type == ZTABLE_FLT )
+		lua_pushnumber( x->state, k.v.vfloat );				
+	else if ( k.type == ZTABLE_TXT )
+		lua_pushstring( x->state, k.v.vchar );
+	else if ( kv->key.type == ZTABLE_BLB)
+		lua_pushlstring( x->state, (char *)k.v.vblob.blob, k.v.vblob.size );
+	else if ( k.type == ZTABLE_TRM ) {
+		x->ti--;	
+		lua_settable( x->state, *x->ti );
+	}
+
+	//Push value
+	if ( v.type == ZTABLE_NUL )
+		;
+	else if ( v.type == ZTABLE_USR )
+		lua_pushstring( x->state, "usrdata received" );
+	else if ( v.type == ZTABLE_INT )
+		lua_pushnumber( x->state, v.v.vint );				
+	else if ( v.type == ZTABLE_FLT )
+		lua_pushnumber( x->state, v.v.vfloat );				
+	else if ( v.type == ZTABLE_TXT )
+		lua_pushstring( x->state, v.v.vchar );
+	else if ( v.type == ZTABLE_BLB )
+		lua_pushlstring( x->state, (char *)v.v.vblob.blob, v.v.vblob.size );
+	else if ( v.type == ZTABLE_TBL ) {
+		lua_newtable( x->state );
+		*( ++x->ti ) = lua_gettop( x->state );
+	}
+	else /* ZTABLE_TRM || ZTABLE_NON */ {
+		return 0;
+	}
+
+	if ( v.type != ZTABLE_NON && v.type != ZTABLE_TBL && v.type != ZTABLE_NUL ) {
+		lua_settable( x->state, *x->ti );
+	}
+	//FPRINTF( "{ .ptr= %p, .tindex= %d, .index= %d },\n", x->state, *x->ti, i );
+	//getchar();
+	return 1;
+}
+
 
 //retire the old version, use lt_exec_complex...
 //place this on the thing, at index x with key <key> (if null, then simply place
 //all values on the table... and don't worry about it)
+//Convert tables from zTable to an actual table...
 int ttable_to_lua ( lua_State *L, int index, zTable *t ) {
-	
-	t->ptr = L;
-	
-	return 1;
+	//Define a name for result set
+	const char name[] = "model";
+	short ti[ 64 ] = { 0 };
+	struct ttl_t tx = { L, ti, 0 };	
 
+	//Set the pointer to the state	
+	t->ptr = &tx;
+
+	//Push a table and increase Lua's "save table" index
+	lua_newtable( L );
+	*ti = 1;
+
+	//Loop until done (transfers ALL values...)
+	lt_exec_complex( t, 0, t->count, t->ptr, ztable_lua_iterator );
+
+	//Unless there is some other issue, return success and set global
+	if ( tx.index < ( t->count - 1 ) ) {
+		return 0;
+	}
+
+	//lua_stackdump( L );
+	lua_setglobal( L, name );
+	return 1;
 }
 
 
+#if 0
+int typical_add_to_lua_table ( lua_State *L ) {
+	//Adding a string to denote the varname should be optional, but it's 
+	//what I need...
+	lua_newtable( L );
+	lua_pushstring( L, "value" );
+	lua_pushnumber( L, 12 );
+	lua_settable( L, 1 );
+	lua_pushstring( L, "mixin" );
+	lua_pushnumber( L, 15 );
+	lua_settable( L, 1 );
+	lua_stackdump( L );	
+	lua_setglobal( L, name );
+	lua_stackdump( L );	
+}
+	
 
 //Convert zTable to Lua table
 int table_to_lua (lua_State *L, int index, zTable *tt) {
@@ -268,40 +351,41 @@ int table_to_lua (lua_State *L, int index, zTable *tt) {
 			FPRINTF( "%s\n", ( i ) ? lt_typename( t ) : lt_typename( t ));
 
 			if ( i ) {
-				if (t == LITE_NUL)
+				if (t == ZTABLE_NUL)
 					;
-				else if (t == LITE_USR)
+				else if (t == ZTABLE_USR)
 					lua_pushstring( L, "usrdata received" ); //?
-				else if (t == LITE_TBL) {
+				else if (t == ZTABLE_TBL) {
 					lua_newtable( L );
 					a += 2;
 				}
 			}
-			if (t == LITE_NON)
+			if (t == ZTABLE_NON)
 				break;
-			else if (t == LITE_FLT || t == LITE_INT)
+			else if (t == ZTABLE_FLT || t == ZTABLE_INT)
 				lua_pushnumber( L, r->vint );				
-			else if (t == LITE_FLT)
+			else if (t == ZTABLE_FLT)
 				lua_pushnumber( L, r->vfloat );				
-			else if (t == LITE_TXT)
+			else if (t == ZTABLE_TXT)
 				lua_pushstring( L, r->vchar );
-			else if (t == LITE_TRM) {
+			else if (t == ZTABLE_TRM) {
 				a -= 2;	
 				break;
 			}
-			else if (t == LITE_BLB) {
+			else if (t == ZTABLE_BLB) {
 				zhBlob *bb = &r->vblob;
 				lua_pushlstring( L, (char *)bb->blob, bb->size );
 			}
 		}
 
-		( t == LITE_NON || t == LITE_TBL || t == LITE_NUL )	? 0 : lua_settable( L, a );
+		( t == ZTABLE_NON || t == ZTABLE_TBL || t == ZTABLE_NUL )	? 0 : lua_settable( L, a );
 		//lua_loop( L );
 	}
 
 	FPRINTF( "Done!\n" );
 	return 1;
 }
+#endif
 
 
 //Convert Lua tables to regular tables
@@ -347,11 +431,10 @@ int is_reserved( const char *a ) {
 }
 
 
-
 int make_route_list ( zKeyval *kv, int i, void *p ) {
 	struct route_t *tt = (struct route_t *)p;
 	const int routes_wordlen = 6;
-	if ( kv->key.type == LITE_TXT && !is_reserved( kv->key.v.vchar ) ) {
+	if ( kv->key.type == ZTABLE_TXT && !is_reserved( kv->key.v.vchar ) ) {
 		char key[ 2048 ] = { 0 };
 		lt_get_full_key( tt->src, i, (unsigned char *)&key, sizeof( key ) );
 		struct iroute_t *ii = malloc( sizeof( struct iroute_t ) );
@@ -377,7 +460,7 @@ int make_mvc_list ( zKeyval *kv, int i, void *p ) {
 	struct mvc_t *tt = (struct mvc_t *)p;
 	char *key = NULL;
 
-	if ( kv->key.type == LITE_TXT && is_reserved( key = kv->key.v.vchar ) ) {
+	if ( kv->key.type == ZTABLE_TXT && is_reserved( key = kv->key.v.vchar ) ) {
 		if ( !strcmp( key, "model" ) )
 			tt->mset = &mvcmeta[ 0 ], tt->type = kv->value.type;
 		else if ( !strcmp( key, "query" ) )
@@ -387,7 +470,7 @@ int make_mvc_list ( zKeyval *kv, int i, void *p ) {
 		}
 	}
 
-	if ( tt->mset && kv->value.type == LITE_TXT && memchr( "mvq", *tt->mset->reserved, 3 ) ) {
+	if ( tt->mset && kv->value.type == ZTABLE_TXT && memchr( "mvq", *tt->mset->reserved, 3 ) ) {
 		struct imvc_t *imvc = malloc( sizeof( struct imvc_t ) );
 		memset( imvc, 0, sizeof( struct imvc_t ) );
 		snprintf( (char *)imvc->file, sizeof(imvc->file) - 1, "%s/%s.%s", 
@@ -395,7 +478,7 @@ int make_mvc_list ( zKeyval *kv, int i, void *p ) {
 		add_item( &tt->imvc_tlist, imvc, struct imvc_t *, &tt->flen );
 	}
 
-	if ( kv->key.type == LITE_TRM || tt->type == LITE_TXT ) {
+	if ( kv->key.type == ZTABLE_TRM || tt->type == ZTABLE_TXT ) {
 		tt->mset = NULL;	
 	}
 	return 1;	
@@ -441,6 +524,7 @@ int lua_handler (struct HTTPBody *req, struct HTTPBody *res ) {
 	zTable zc, zm; 
 	zTable *zconfig = &zc, *zmodel = &zm, *zroutes = NULL, *croute = NULL;
 	char err[2048] = {0};
+	const char *log[ 64 ];
 	const char *db, *fqdn, *title, *spath, *root;
 	lua_State *L = NULL;
 	int clen = 0;
@@ -524,25 +608,35 @@ int lua_handler (struct HTTPBody *req, struct HTTPBody *res ) {
 	//Open the standard libraries (once)
 	luaL_openlibs( L );
 
+	//Open our extra libraries too (if requested via config file...)
+	//load_lua_libs( L );
+	static const char mkey[] = "model";
+	
 	//Execute each model
 	for ( struct imvc_t **m = pp.imvc_tlist; *m; m++ ) {
 		const char *f = (*m)->file;
-		if ( *f == 'a' ) {
-			fprintf( stderr, "model: %s\n", f );
-			char err[ 2048 ] = { 0 }, xf[ 1024 ] = { 0 };
-			int valcount = 0;
 
-			#if 1
-				//table_to_lua( L, 1, zmodel );
-			
-			#else
-			int tabpop = 0;
+		if ( *f == 'a' ) {
+			fprintf( stderr, "model file: %s\n", f );
+			fprintf( stderr, "model ptr: %p\n", zmodel );
+			char err[ 2048 ] = { 0 }, msymname[ 1024 ] = { 0 };
+			int valcount = 0;
+		
+		#if 1
+			//Now we check for mkey in the registry and pull that
+			//(This is how we tell if there is any model data or not) 
+		#else
 			//If there are any values, they need to be inserted into Lua env
-			if ( ( tabpop = lt_countall( zmodel ) ) > 1 ) {
-				fprintf( stderr, "ztable has %d elements, so far\n", tabpop ); 
-				table_to_lua( L, 1, zmodel );
+			if ( lt_countall( zmodel ) > 1 ) { 
+				//If we fail to insert, this is a model error and worthy of a 500...
+				if ( !ttable_to_lua( L, 1, zmodel ) )
+					return http_error( res, 500, "Error converting original model!" );
+				else {
+					//The zTable model should be destroyed here...
+					0;
+				}
 			}
-			#endif
+		#endif
 
 			//Open the file that will execute the model
 			if ( !lua_exec_file( L, f, err, sizeof( err ) ) ) {
@@ -550,38 +644,123 @@ int lua_handler (struct HTTPBody *req, struct HTTPBody *res ) {
 			}
 
 			//When successfully executed, return with: xf = `basename f` or f += 4;
-			memcpy( xf, &f[4], strlen( f ) - 8 );
+			memcpy( msymname, &f[4], strlen( f ) - 8 );
 			valcount = lua_gettop( L );
-			fprintf( stderr, "Execution of '%s' returned %d values\n", xf, valcount );
+			FPRINTF( "Execution of '%s' returned %d values\n", msymname, valcount );
+	
+		#if 0
+			//This is fairly difficult for some reason...
+			//What exactly happened here?	
+			int px;
+			px = lua_getfield( L, LUA_REGISTRYINDEX, mkey );
+			FPRINTF( "lua_getfield = %d\n", px );
+			
+			//Yet more debugging
+			lua_stackdump( L );
+			getchar();
 
-			//Any value should be added
+		px = lua_getfield( L, LUA_REGISTRYINDEX, mkey );
+FPRINTF( "lua_getfield = %d\n", px );
+getchar();
+//1. Copy stack to ztable, retrieve model, then ztable to model;
+//2. Grab model from registry, insert AT THE BEGINNING, and put each 
+//	 result into model, and save model to reg again
+			//Get model from registry... (might need to check if it exists first)	
+			if ( 0 ) {
+				lua_pushstring( L, mkey );
+				lua_pushlightuserdata( L, (void *)mkey );	 //seems better...
+				lua_gettable( L, LUA_REGISTRYINDEX );
+				//Is the REG table automatically on the stack???
+
+				lua_insert( L, 1 ); //puts the model at the beginning
+			}
+
+		#if 0	
+			//Dump stack should show model table and all of the results if any
+			lua_stackdump( L );
+
+			//Aggregate all of the stack values on the first key
+			lua_agg_vals_yo( L, 1 );
+
+			//Dump stack should show model table only
+			lua_stackdump( L );
+
+			//Add string to the stack and place it at the beginning	
+			lua_pushlightuserdata( L, (void *)mkey );	 
+			lua_insert( L, 1 );  //inserts the string at the beginning
+
+			//Dump stack should show string & model table
+			lua_stackdump( L );
+
+			//Put it back on reg
+			lua_settable( L, LUA_REGISTRYINDEX );
+
+			//Dump stack should show ... nothing!
+			lua_stackdump( L );
+
+		#endif
+		#endif
+	
+		#if 1
+			//Debugging's sake
+			lua_stackdump( L );
+
+			//Values directly returned from execution should be added.  In addition to values
+			//from global 'model'...
+
+			//Add a key
+			lt_addtextkey( zmodel, mkey );
+			lt_descend( zmodel );
+
 			for ( int vi = 1; vi <= valcount; vi++ ) {
-				fprintf( stderr, "Adding value at pos %d from stack.\n", vi );
+				FPRINTF( "Adding value at pos %d from stack.\n", vi );
 				if ( lua_isstring( L, vi ) ) 
-					lt_addtextkey( zmodel, xf ), lt_addtextvalue( zmodel, lua_tostring( L, vi ));
+					lt_addtextkey( zmodel, msymname ), lt_addtextvalue( zmodel, lua_tostring( L, vi ));
 				else if ( lua_isinteger( L, vi ) || lua_isnumber( L, vi ) ) 
-					lt_addtextkey( zmodel, xf ), lt_addintvalue( zmodel, lua_tonumber( L, vi ));
+					lt_addtextkey( zmodel, msymname ), lt_addintvalue( zmodel, lua_tonumber( L, vi ));
 				else if ( lua_islightuserdata( L, vi ) || lua_isuserdata( L, vi ) ) 
-					lt_addtextkey( zmodel, xf ), lt_addudvalue( zmodel, lua_touserdata(L, vi ));
+					lt_addtextkey( zmodel, msymname ), lt_addudvalue( zmodel, lua_touserdata(L, vi ));
+			#if 0
+				//TODO: We can evenaully handle threads and functions from here...
+			#endif
 				else if ( lua_istable( L, vi ) ) {
 					//This function does not add any key
 					if ( !lua_to_table( L, vi, zmodel ) ) {
 						//TODO: Free all things
+						lt_free( zmodel );
+						lua_close( L );
 						return http_error( res, 500, "%s", "Failed to convert Lua to zTable" );
 					}
 				}
 				else {
-					//TODO: We can evenaully handle threads and functions from here...
 					//TODO: Free all things
+					lt_free( zmodel );
+					lua_close( L );
 					return http_error( res, 500, "%s", "Lua threads and functions as models not supported yet." );
 				}
-				lt_finalize( zmodel );
-				lt_lock( zmodel );
+				if ( !lua_istable( L, vi ) ) {
+					lt_finalize( zmodel );
+				}
 			}
+
+			//Finish the encompassing table, lock keys for hashing
+			lt_ascend( zmodel );
+			lt_lock( zmodel );
+
+			//Remove the values added
 			lua_pop( L, valcount );
+
+			//Debugging
+			fprintf( stderr, "MODEL AFTER EXECUTION of %s\n", f );
+			lt_dump( zmodel );
+		#endif
+			getchar();
 		}
 	}
+
+	//Lock and dump...
 	lt_lock( zmodel );
+	fprintf( stderr, "DUMP FULL MODEL AFTER ALL FILES\n" );
 	lt_dump( zmodel );
 	lt_free( zmodel );
 

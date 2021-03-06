@@ -8,7 +8,10 @@ return {
 , root = ""
 ,	routes = {
 		["/"] = { model = "single", views = { "single" } }
-	,	["books"] = { model = { "books", "more-books", "extra-books" }, views = { "intro", "books", "outro" } }
+	,	["books"] = { 
+			model = { "books", "print-books", "edit-books" }
+		, views = { "intro", "books", "outro" } 
+		}
 	,	["book"] = { model = { "books", "single-book" }, views = { "intro", "b", "outro" } }
 	,	["home"] = { 
 			system = "jaundice",
