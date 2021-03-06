@@ -1,18 +1,41 @@
 #include "lua.h"
 
+
 #define FPRINTF( ... ) \
 	fprintf( stderr, __VA_ARGS__ )
 
-#if 0
-//Load Lua libraries
-static lua_State * lua_load_libs( lua_State **L ) {
-	if ( !( *L = luaL_newstate() ) ) {
-		return NULL;
-	}	
-	luaL_openlibs( *L );
-	return *L;
-}
-#endif
+static const char mkey[] = "model";
+
+static const char rkey[] = "routes";
+
+static struct mvcmeta_t { 
+	const char *dir; 
+	const char *reserved; 
+	const char *ext;
+} mvcmeta [] = {
+	{ "app", "model", "lua" }
+,	{ "sql", "query", "sql" }
+,	{ "views", "views", "tpl" }
+};
+
+
+struct route_t { 
+	int iroute_tlen;
+	struct iroute_t { char *route; int index; } **iroute_tlist;
+	zTable *src;
+};
+
+
+struct mvc_t {
+	struct mvcmeta_t *mset;
+	int flen, type;
+	struct imvc_t {
+		const char file[ 2048 ];
+		//leave some space here...
+		//const char *dir;
+	} **imvc_tlist;
+};
+
 
 
 #ifdef DEBUG_H
@@ -122,37 +145,6 @@ void lua_stackdump ( lua_State *L ) {
 
 
 
-static struct mvcmeta_t { 
-	const char *dir; 
-	const char *reserved; 
-	const char *ext;
-} mvcmeta [] = {
-	{ "app", "model", "lua" }
-,	{ "sql", "query", "sql" }
-,	{ "views", "views", "tpl" }
-};
-
-
-struct route_t { 
-	int iroute_tlen;
-	struct iroute_t { char *route; int index; } **iroute_tlist;
-	zTable *src;
-};
-
-
-struct mvc_t {
-	struct mvcmeta_t *mset;
-	int flen, type;
-	struct imvc_t {
-		const char file[ 2048 ];
-		//leave some space here...
-		//const char *dir;
-	} **imvc_tlist;
-};
-
-
-
-
 //A better load file
 int lua_exec_file( lua_State *L, const char *f, char *err, int errlen ) {
 	int len = 0, lerr = 0;
@@ -223,92 +215,15 @@ int lua_exec_file( lua_State *L, const char *f, char *err, int errlen ) {
 }
 
 
-struct ttl_t {
-	lua_State *state;
-	short *ti, index;
-};
-
-
-static int lua_ztable_iterator () {
-	return 1;
-}
-
-
-static int ztable_lua_iterator ( zKeyval *kv, int i, void *p ) {
-	struct ttl_t *x = (struct ttl_t *)p; 
-	zhValue k = kv->key, v = kv->value;
-	x->index = i;
-	//FPRINTF( "{ .ptr= %p, .tindex= %d, .index= %d },\n", x->state, *x->ti, i );
-
-	//Push key 
-	if ( k.type == ZTABLE_NON )
-		return 0;	
-	else if ( k.type == ZTABLE_INT ) //Arrays start at 1 in Lua, so increment by 1
-		lua_pushnumber( x->state, k.v.vint + 1 );				
-	else if ( k.type == ZTABLE_FLT )
-		lua_pushnumber( x->state, k.v.vfloat );				
-	else if ( k.type == ZTABLE_TXT )
-		lua_pushstring( x->state, k.v.vchar );
-	else if ( kv->key.type == ZTABLE_BLB)
-		lua_pushlstring( x->state, (char *)k.v.vblob.blob, k.v.vblob.size );
-	else if ( k.type == ZTABLE_TRM ) {
-		x->ti--;	
-		lua_settable( x->state, *x->ti );
-	}
-
-	//Push value
-	if ( v.type == ZTABLE_NUL )
-		;
-	else if ( v.type == ZTABLE_USR )
-		lua_pushstring( x->state, "usrdata received" );
-	else if ( v.type == ZTABLE_INT )
-		lua_pushnumber( x->state, v.v.vint );				
-	else if ( v.type == ZTABLE_FLT )
-		lua_pushnumber( x->state, v.v.vfloat );				
-	else if ( v.type == ZTABLE_TXT )
-		lua_pushstring( x->state, v.v.vchar );
-	else if ( v.type == ZTABLE_BLB )
-		lua_pushlstring( x->state, (char *)v.v.vblob.blob, v.v.vblob.size );
-	else if ( v.type == ZTABLE_TBL ) {
-		lua_newtable( x->state );
-		*( ++x->ti ) = lua_gettop( x->state );
-	}
-	else /* ZTABLE_TRM || ZTABLE_NON */ {
-		return 0;
-	}
-
-	if ( v.type != ZTABLE_NON && v.type != ZTABLE_TBL && v.type != ZTABLE_NUL ) {
-		lua_settable( x->state, *x->ti );
-	}
-	//FPRINTF( "{ .ptr= %p, .tindex= %d, .index= %d },\n", x->state, *x->ti, i );
-	//getchar();
-	return 1;
-}
-
-
+	
 //Copy all records from a zTable to a Lua table at any point in the stack.
 int ztable_to_lua ( lua_State *L, zTable *t ) {
-	//Define a name for result set
-	//const char name[] = "model";
 	short ti[ 64 ] = { 0 }, *xi = ti; 
-	struct ttl_t tx = { L, ti, 0 };	
 
 	//Push a table and increase Lua's "save table" index
 	lua_newtable( L );
 	*ti = 1;
 
-#if 0
-	//Set the pointer to the state	
-	t->ptr = &tx;
-
-	//Loop until done (transfers ALL values...)
-	lt_exec_complex( t, 0, t->count, t->ptr, ztable_lua_iterator );
-
-	//Unless there is some other issue, return success and set global
-	if ( tx.index < ( t->count - 1 ) ) {
-		return 0;
-	}
-#else
 	//Reset table's index
 	lt_reset( t );
 
@@ -316,7 +231,6 @@ int ztable_to_lua ( lua_State *L, zTable *t ) {
 	for ( zKeyval *kv ; ( kv = lt_next( t ) ); ) {
 		zhValue k = kv->key, v = kv->value;
 
-		//Push key 
 		if ( k.type == ZTABLE_NON )
 			return 1;	
 		else if ( k.type == ZTABLE_INT ) //Arrays start at 1 in Lua, so increment by 1
@@ -328,11 +242,9 @@ int ztable_to_lua ( lua_State *L, zTable *t ) {
 		else if ( kv->key.type == ZTABLE_BLB)
 			lua_pushlstring( L, (char *)k.v.vblob.blob, k.v.vblob.size );
 		else if ( k.type == ZTABLE_TRM ) {
-			xi--;	
-			lua_settable( L, *xi );
+			lua_settable( L, *( --xi ) );
 		}
 
-		//Push value
 		if ( v.type == ZTABLE_NUL )
 			;
 		else if ( v.type == ZTABLE_USR )
@@ -357,13 +269,13 @@ int ztable_to_lua ( lua_State *L, zTable *t ) {
 			lua_settable( L, *xi );
 		}
 	}
-#endif
 	return 1;
 }
 
 
+
 //Convert Lua tables to regular tables
-int lua_to_ztable( lua_State *L, int index, zTable *t ) {
+int lua_to_ztable ( lua_State *L, int index, zTable *t ) {
 	lua_pushnil( L );
 	while ( lua_next( L, index ) != 0 ) {
 		int kt, vt;
@@ -397,7 +309,8 @@ int lua_to_ztable( lua_State *L, int index, zTable *t ) {
 }
 
 
-int is_reserved( const char *a ) {
+
+static int is_reserved( const char *a ) {
 	for ( int i = 0; i < sizeof( mvcmeta ) / sizeof( struct mvcmeta_t ); i ++ ) {
 		if ( strcmp( a, mvcmeta[i].reserved ) == 0 ) return 1;
 	}
@@ -405,7 +318,8 @@ int is_reserved( const char *a ) {
 }
 
 
-int make_route_list ( zKeyval *kv, int i, void *p ) {
+
+static int make_route_list ( zKeyval *kv, int i, void *p ) {
 	struct route_t *tt = (struct route_t *)p;
 	const int routes_wordlen = 6;
 	if ( kv->key.type == ZTABLE_TXT && !is_reserved( kv->key.v.vchar ) ) {
@@ -420,7 +334,7 @@ int make_route_list ( zKeyval *kv, int i, void *p ) {
 
 
 
-void free_route_list ( struct iroute_t **list ) {
+static void free_route_list ( struct iroute_t **list ) {
 	for ( struct iroute_t **l = list; *l; l++ ) {
 		free( (*l)->route );
 		free( *l );
@@ -430,7 +344,7 @@ void free_route_list ( struct iroute_t **list ) {
 
 
 
-int make_mvc_list ( zKeyval *kv, int i, void *p ) {
+static int make_mvc_list ( zKeyval *kv, int i, void *p ) {
 	struct mvc_t *tt = (struct mvc_t *)p;
 	char *key = NULL;
 
@@ -468,6 +382,7 @@ void free_mvc_list ( void **list ) {
 }
 
 
+
 #if 0
 int load_lua_model( lua_State *L, const char *f, char **err, int errlen ) {
 	//Open the configuration file
@@ -491,14 +406,27 @@ int load_lua_model( lua_State *L, const char *f, char **err, int errlen ) {
 #endif
 
 
+
+#if 0
+//Load Lua libraries
+static lua_State * lua_load_libs( lua_State **L ) {
+	if ( !( *L = luaL_newstate() ) ) {
+		return NULL;
+	}	
+	luaL_openlibs( *L );
+	return *L;
+}
+#endif
+
+
+
 //The entry point for a Lua application
 int lua_handler (struct HTTPBody *req, struct HTTPBody *res ) {
 
 	//Define variables and error positions...
-	zTable zc, zm; 
+	zTable zc, zm = {0};
 	zTable *zconfig = &zc, *zmodel = &zm, *zroutes = NULL, *croute = NULL;
 	char err[2048] = {0};
-	const char *log[ 64 ];
 	const char *db, *fqdn, *title, *spath, *root;
 	lua_State *L = NULL;
 	int clen = 0;
@@ -538,10 +466,11 @@ int lua_handler (struct HTTPBody *req, struct HTTPBody *res ) {
 	lua_pop( L, 1 );
 #endif
 
-#if 1
+#if 0
 	//EVERYTHING HERE REALLY SHOULD GO IN A PLACE OF ITS OWN...
+#else
 	//Get the rotues from the config file.
-	if ( !( zroutes = lt_copy_by_key( zconfig, "routes" ) ) ) {
+	if ( !( zroutes = lt_copy_by_key( zconfig, rkey ) ) ) {
 		return http_error( res, 500, "%s", "Failed to copy routes from config." );
 	}
 
@@ -552,7 +481,6 @@ int lua_handler (struct HTTPBody *req, struct HTTPBody *res ) {
 	//Loop through the routes
 	struct mvc_t pp = {0};
 	for ( struct iroute_t **lroutes = p.iroute_tlist; *lroutes; lroutes++ ) {
-		//fprintf( stderr, "Checking %s against %s\n", req->path, (*lroutes)->route );
 		if ( route_resolve( req->path, (*lroutes)->route ) ) {
 			croute = lt_copy_by_index( zroutes, (*lroutes)->index );
 			lt_exec_complex( croute, 1, croute->count, &pp, make_mvc_list );
@@ -574,18 +502,13 @@ int lua_handler (struct HTTPBody *req, struct HTTPBody *res ) {
 	lt_free( zconfig );
 #endif
 
-	//Load all models
-	if ( !lt_init( zmodel, NULL, 2048 ) ) {
-		return http_error( res, 500, "Failed to init model table." );
-	}
-
+#if 1
 	//Open the standard libraries (once)
 	luaL_openlibs( L );
 
 	//Open our extra libraries too (if requested via config file...)
 	//load_lua_libs( L );
-	static const char mkey[] = "model";
-	
+
 	//Execute each model
 	for ( struct imvc_t **m = pp.imvc_tlist; *m; m++ ) {
 		const char *f = (*m)->file;
@@ -595,25 +518,16 @@ int lua_handler (struct HTTPBody *req, struct HTTPBody *res ) {
 			char err[ 2048 ] = { 0 }, msymname[ 1024 ] = { 0 };
 			int ircount = 0, tcount = 0; 
 
-			//Debugging
-			fprintf( stderr, "model { file = %s, ptr = %p\n", f, zmodel  );
-
 			//If there are any values, they need to be inserted into Lua env
 			if ( lt_countall( zmodel ) > 1 ) {
-				FPRINTF( "A model is present.  Add to global...\n" );
 				//If we fail to insert, this is a model error and worthy of a 500...
 				if ( !ztable_to_lua( L, zmodel ) ) {
 					return http_error( res, 500, "Error converting original model!" );
 				}
 			
-				//Make it global	
+				//Make the old model global, & destroy the ref to the old model...	
 				lua_setglobal( L, mkey );
-
-				//Destroy and rebuild the zTable model here...
 				lt_free( zmodel );
-				if ( !lt_init( zmodel, NULL, 2048 ) ) {
-					return http_error( res, 500, "Failed to init model table." );
-				}
 			}
 
 			//Open the file that will execute the model
@@ -621,39 +535,25 @@ int lua_handler (struct HTTPBody *req, struct HTTPBody *res ) {
 				return http_error( res, 500, "%s", err );
 			}
 
-			//When successfully executed, return with: xf = `basename f` or f += 4;
+			//Get name of model file in question 
 			memcpy( msymname, &f[4], strlen( f ) - 8 );
 			ircount = lua_gettop( L );
-			FPRINTF( "Execution of '%s' returned %d values\n", msymname, ircount );
 	
-			//Debugging's sake
-			lua_stackdump( L );
-
 			//Check for model in Lua's global environment and convert that as well
-			//.... yay
 			lua_getglobal( L, mkey );
 			if ( lua_isnil( L, -1 ) ) {
-				FPRINTF( "No previous model found.\n" );
 				lua_pop( L, 1 );
-				//Debugging's sake
-				//TODO: Is pushing nil to the front, then this could be failing for that reason.
-				lua_stackdump( L );
-			}
-			else {
-				FPRINTF( "Re-inserting model values (if any)\n" ); 
-				lua_stackdump( L );
 			}
 
+			//Get a count of the values which came from the model
 			tcount = lua_gettop( L );
-			FPRINTF( "Total values on stack = %d\n", tcount );
-			//getchar();
-		
-		#if 1
-			//Add a key
-			//lt_addtextkey( zmodel, mkey );
-			//lt_descend( zmodel );
+	
+			//Initialize a model here	(TODO: modulo value can be much smaller)
+			if ( !lt_init( zmodel, NULL, 2048 ) ) {
+				return http_error( res, 500, "Failed to init model table." );
+			}
+
 			for ( int vi = 1; vi <= tcount; vi++ ) {
-				FPRINTF( "Adding value at pos %d from stack.\n", vi );
 				if ( lua_isstring( L, vi ) ) 
 					lt_addtextkey( zmodel, msymname ), lt_addtextvalue( zmodel, lua_tostring( L, vi ));
 				else if ( lua_isinteger( L, vi ) || lua_isnumber( L, vi ) ) 
@@ -686,34 +586,28 @@ int lua_handler (struct HTTPBody *req, struct HTTPBody *res ) {
 
 			//Remove the values added
 			lua_pop( L, tcount );
-
-			//Debugging
-			fprintf( stderr, "MODEL AFTER EXECUTION of %s\n", f );
-			lt_dump( zmodel );
-		#endif
-			//getchar();
 		}
 	}
-
-	//Lock and dump...
-	lt_lock( zmodel );
-	fprintf( stderr, "DUMP FULL MODEL AFTER ALL FILES\n" );
-	lt_dump( zmodel );
+#endif
 
 #if 1
+	//Lock the model for hashing's sake
+	lt_lock( zmodel );
+
 	//Load all views
 	for ( struct imvc_t **v = pp.imvc_tlist; *v; v++ ) {
 		const char *f = (*v)->file;
 		if ( *f == 'v' ) {
-			fprintf( stderr, "view: %s\n", f );
 			int len = 0, renlen = 0;
 			unsigned char *src, *render;
 			zRender * rz = zrender_init();
 			zrender_set_default_dialect( rz );
 			zrender_set_fetchdata( rz, zmodel );
+
 			if ( !( src = read_file( f, &len, err, sizeof( err ) )	) || !len ) {
 				return http_error( res, 500, "%s", err );
 			}
+
 			if ( !( render = zrender_render( rz, src, strlen((char *)src), &renlen ) ) ) {
 				return http_error( res, 500, "%s", "Renderer error." );
 			}
@@ -722,7 +616,6 @@ int lua_handler (struct HTTPBody *req, struct HTTPBody *res ) {
 			free( src );
 		}
 	}
-#endif
 
 	//Destroy mvc list
 	free_mvc_list( (void **)pp.imvc_tlist );
@@ -735,12 +628,13 @@ int lua_handler (struct HTTPBody *req, struct HTTPBody *res ) {
 	res->clen = clen;
 	http_set_status( res, 200 ); 
 	http_set_ctype( res, "text/html" );
-	http_set_content( res, content, clen ); 
+	http_copy_content( res, content, clen ); 
 
 	//Return the finished message if we got this far
 	if ( !http_finalize_response( res, err, sizeof(err) ) ) {
 		return http_error( res, 500, err );
 	}
+#endif
 
 	//Destroy full model
 	lt_free( zmodel );
@@ -750,3 +644,41 @@ int lua_handler (struct HTTPBody *req, struct HTTPBody *res ) {
 	return 1;
 }
 
+
+
+#ifdef RUN_MAIN
+int main (int argc, char *argv[]) {
+	struct HTTPBody req = {0}, res = {0};
+	char err[ 2048 ] = { 0 };
+
+	//Populate the request structure.  Normally, one will never populate this from scratch
+	req.path = zhttp_dupstr( "/books" );
+	req.ctype = zhttp_dupstr( "text/html" );
+	req.host = zhttp_dupstr( "example.com" );
+	req.method = zhttp_dupstr( "GET" );
+	req.protocol = zhttp_dupstr( "HTTP/1.1" );
+
+	//Assemble a message from here...
+	if ( !http_finalize_request( &req, err, sizeof( err ) ) ) {
+		fprintf( stderr, "%s\n", err );
+		return 1; 
+	}
+
+	//run the handler
+	if ( !lua_handler( &req, &res ) ) {
+		fprintf( stderr, "lmain: HTTP funct failed to execute\n" );
+		write( 2, res.msg, res.mlen );
+		http_free_request( &req );
+		http_free_response( &res );
+		return 1;
+	}
+
+	//Destroy res, req and anything else allocated
+	http_free_request( &req );
+	http_free_response( &res );
+
+	//After we're done, look at the response
+	return 0;
+
+}
+#endif

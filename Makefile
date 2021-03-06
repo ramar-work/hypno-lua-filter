@@ -17,6 +17,14 @@ lua: $(OBJ)
 	$(CC) -DLT_DEVICE=1 $(SFLAGS) -shared -llua -lsqlite3 -o bin/app.so $(OBJ)
 
 
+lmain: SRC += lua.c
+lmain: CFLAGS += -Werror -Wno-unused -Wno-format-security -std=c99 -Ivendor -DRUN_MAIN $(DFLAGS)
+lmain: $(OBJ)
+lmain: clean
+	$(CC) $(CFLAGS) -c -o lua.o lua.c
+	$(CC) $(CFLAGS) -llua -lsqlite3 -o bin/lmain $(OBJ)
+
+
 cli: 
 	$(CC) $(CFLAGS) -ldl -lsqlite3 -o bin/harness harness.c vendor/zhttp.c vendor/zwalker.c vendor/megadeth.c
 
