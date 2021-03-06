@@ -287,20 +287,19 @@ static int ztable_lua_iterator ( zKeyval *kv, int i, void *p ) {
 
 
 //Copy all records from a zTable to a Lua table at any point in the stack.
-int ttable_to_lua ( lua_State *L, zTable *t ) {
+int ztable_to_lua ( lua_State *L, zTable *t ) {
 	//Define a name for result set
 	//const char name[] = "model";
-	short ti[ 64 ] = { 0 }; 
-	short *xi = ti;
+	short ti[ 64 ] = { 0 }, *xi = ti; 
 	struct ttl_t tx = { L, ti, 0 };	
-
-#if 1
-	//Set the pointer to the state	
-	t->ptr = &tx;
 
 	//Push a table and increase Lua's "save table" index
 	lua_newtable( L );
 	*ti = 1;
+
+#if 0
+	//Set the pointer to the state	
+	t->ptr = &tx;
 
 	//Loop until done (transfers ALL values...)
 	lt_exec_complex( t, 0, t->count, t->ptr, ztable_lua_iterator );
@@ -310,13 +309,11 @@ int ttable_to_lua ( lua_State *L, zTable *t ) {
 		return 0;
 	}
 #else
-	//Push a table and increase Lua's "save table" index
-	lua_newtable( L );
-	*ti = 1;
+	//Reset table's index
+	lt_reset( t );
 
 	//Loop through all values and copy
-	lt_reset( t );
-	for ( zKeyval *kv = NULL; ( kv = lt_next( t ) ) == NULL ; ) {
+	for ( zKeyval *kv ; ( kv = lt_next( t ) ); ) {
 		zhValue k = kv->key, v = kv->value;
 
 		//Push key 
@@ -365,81 +362,8 @@ int ttable_to_lua ( lua_State *L, zTable *t ) {
 }
 
 
-#if 0
-int typical_add_to_lua_table ( lua_State *L ) {
-	//Adding a string to denote the varname should be optional, but it's 
-	//what I need...
-	lua_newtable( L );
-	lua_pushstring( L, "value" );
-	lua_pushnumber( L, 12 );
-	lua_settable( L, 1 );
-	lua_pushstring( L, "mixin" );
-	lua_pushnumber( L, 15 );
-	lua_settable( L, 1 );
-	lua_stackdump( L );	
-	lua_setglobal( L, name );
-	lua_stackdump( L );	
-}
-	
-
-//Convert zTable to Lua table
-int table_to_lua (lua_State *L, int index, zTable *tt) {
-	int a = index;
-	zKeyval *kv = NULL;
-	lt_reset( tt );
-
-	while ( (kv = lt_next( tt )) ) {
-		struct { int t; zhRecord *r; } items[2] = {
-			{ kv->key.type  , &kv->key.v    },
-			{ kv->value.type, &kv->value.v  } 
-		};
-
-		int t=0;
-		for ( int i=0; i<2; i++ ) {
-			zhRecord *r = items[i].r; 
-			t = items[i].t;
-			FPRINTF( "%s\n", ( i ) ? lt_typename( t ) : lt_typename( t ));
-
-			if ( i ) {
-				if (t == ZTABLE_NUL)
-					;
-				else if (t == ZTABLE_USR)
-					lua_pushstring( L, "usrdata received" ); //?
-				else if (t == ZTABLE_TBL) {
-					lua_newtable( L );
-					a += 2;
-				}
-			}
-			if (t == ZTABLE_NON)
-				break;
-			else if (t == ZTABLE_FLT || t == ZTABLE_INT)
-				lua_pushnumber( L, r->vint );				
-			else if (t == ZTABLE_FLT)
-				lua_pushnumber( L, r->vfloat );				
-			else if (t == ZTABLE_TXT)
-				lua_pushstring( L, r->vchar );
-			else if (t == ZTABLE_TRM) {
-				a -= 2;	
-				break;
-			}
-			else if (t == ZTABLE_BLB) {
-				zhBlob *bb = &r->vblob;
-				lua_pushlstring( L, (char *)bb->blob, bb->size );
-			}
-		}
-
-		( t == ZTABLE_NON || t == ZTABLE_TBL || t == ZTABLE_NUL )	? 0 : lua_settable( L, a );
-		//lua_loop( L );
-	}
-
-	FPRINTF( "Done!\n" );
-	return 1;
-}
-#endif
-
-
 //Convert Lua tables to regular tables
-int lua_to_table( lua_State *L, int index, zTable *t ) {
+int lua_to_ztable( lua_State *L, int index, zTable *t ) {
 	lua_pushnil( L );
 	while ( lua_next( L, index ) != 0 ) {
 		int kt, vt;
@@ -457,7 +381,7 @@ int lua_to_table( lua_State *L, int index, zTable *t ) {
 			lt_addtextvalue( t, (char *)lua_tostring( L, -1 ));
 		else if ( vt == LUA_TTABLE ) {
 			lt_descend( t );
-			lua_to_table( L, index + 2, t ); 
+			lua_to_ztable( L, index + 2, t ); 
 			lt_ascend( t );
 		}
 
@@ -557,7 +481,7 @@ int load_lua_model( lua_State *L, const char *f, char **err, int errlen ) {
 	}
 
 	//Convert the Lua values to real values for extraction.
-	if ( !lua_to_table( L, 1, zconfig ) ) {
+	if ( !lua_to_ztable( L, 1, zconfig ) ) {
 		return http_error( res, 500, "%s", "Failed to convert Lua to zTable" );
 	}
 
@@ -606,7 +530,7 @@ int lua_handler (struct HTTPBody *req, struct HTTPBody *res ) {
 	}
 
 	//Convert the Lua values to real values for extraction.
-	if ( !lua_to_table( L, 1, zconfig ) ) {
+	if ( !lua_to_ztable( L, 1, zconfig ) ) {
 		return http_error( res, 500, "%s", "Failed to convert Lua to zTable" );
 	}
 
@@ -678,7 +602,7 @@ int lua_handler (struct HTTPBody *req, struct HTTPBody *res ) {
 			if ( lt_countall( zmodel ) > 1 ) {
 				FPRINTF( "A model is present.  Add to global...\n" );
 				//If we fail to insert, this is a model error and worthy of a 500...
-				if ( !ttable_to_lua( L, zmodel ) ) {
+				if ( !ztable_to_lua( L, zmodel ) ) {
 					return http_error( res, 500, "Error converting original model!" );
 				}
 			
@@ -741,7 +665,7 @@ int lua_handler (struct HTTPBody *req, struct HTTPBody *res ) {
 			#endif
 				else if ( lua_istable( L, vi ) ) {
 					//This function does not add any key
-					if ( !lua_to_table( L, vi, zmodel ) ) {
+					if ( !lua_to_ztable( L, vi, zmodel ) ) {
 						//TODO: Free all things
 						lt_free( zmodel );
 						lua_close( L );
