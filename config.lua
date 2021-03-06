@@ -9,7 +9,7 @@ return {
 ,	routes = {
 		["/"] = { model = "single", views = { "single" } }
 	,	["books"] = { 
-			model = { "books", "print-books", "edit-books" }
+			model = { "books", "print-books", "edit-books", "add-books", "add-fields-books" }
 		, views = { "intro", "books", "outro" } 
 		}
 	,	["book"] = { model = { "books", "single-book" }, views = { "intro", "b", "outro" } }

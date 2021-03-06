@@ -393,7 +393,7 @@ int lua_to_table( lua_State *L, int index, zTable *t ) {
 
 		//Get key (remember Lua indices always start at 1.  Hence the minus.
 		if (( kt = lua_type( L, -2 )) == LUA_TNUMBER )
-			lt_addintkey( t, lua_tointeger( L, -2 ) - 1);
+			lt_addintkey( t, lua_tointeger( L, -2 ) );
 		else if ( kt  == LUA_TSTRING ) {
 			lt_addtextkey( t, (char *)lua_tostring( L, -2 ));
 		}
@@ -620,16 +620,7 @@ int lua_handler (struct HTTPBody *req, struct HTTPBody *res ) {
 			int ircount = 0, tcount = 0; 
 
 			//If there are any values, they need to be inserted into Lua env
-			if ( lt_countall( zmodel ) <= 1 ) {
-			#if 0
-				lua_stackdump( L );
-				lua_pushnumber( L, -1 );
-				lua_stackdump( L );
-				lua_setglobal( L, mkey );
-				lua_stackdump( L );
-			#endif
-			}
-			else {
+			if ( lt_countall( zmodel ) > 1 ) {
 				FPRINTF( "A model is present.  Add to global...\n" );
 				//If we fail to insert, this is a model error and worthy of a 500...
 				if ( !ttable_to_lua( L, zmodel ) ) {
@@ -708,6 +699,7 @@ int lua_handler (struct HTTPBody *req, struct HTTPBody *res ) {
 					lua_close( L );
 					return http_error( res, 500, "%s", "Lua threads and functions as models not supported yet." );
 				}
+
 				if ( !lua_istable( L, vi ) ) {
 					lt_finalize( zmodel );
 				}
