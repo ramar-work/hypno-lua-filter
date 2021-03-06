@@ -30,24 +30,25 @@ static void lua_dumptable ( lua_State *L, int *pos, int *sd ) {
 		for ( int i = -2; i < 0; i++ ) {
 			int t = lua_type( L, i );
 			const char *type = lua_typename( L, t );
+				//fprintf( stderr, "(%8s) %p", type, (void *)lua_tocfunction( L, i ) );
 
 			if ( t == LUA_TSTRING )
-				fprintf( stderr, "(%8s) %s", type, lua_tostring( L, i ));
+				fprintf( stderr, "(%s) %s", type, lua_tostring( L, i ));
 			else if ( t == LUA_TFUNCTION )
-				fprintf( stderr, "(%8s) %p", type, (void *)lua_tocfunction( L, i ) );
+				fprintf( stderr, "(%s) %d", type, i /*(void *)lua_tocfunction( L, pos )*/ );
 			else if ( t == LUA_TNUMBER )
-				fprintf( stderr, "(%8s) %lld", type, (long long)lua_tointeger( L, i ));
+				fprintf( stderr, "(%s) %lld", type, (long long)lua_tointeger( L, i ));
 			else if ( t == LUA_TBOOLEAN)
-				fprintf( stderr, "(%8s) %s", type, lua_toboolean( L, i ) ? "true" : "false" );
+				fprintf( stderr, "(%s) %s", type, lua_toboolean( L, i ) ? "true" : "false" );
 			else if ( t == LUA_TTHREAD )
-				fprintf( stderr, "(%8s) %p", type, lua_tothread( L, i ) );
+				fprintf( stderr, "(%s) %p", type, lua_tothread( L, i ) );
 			else if ( t == LUA_TLIGHTUSERDATA || t == LUA_TUSERDATA )
-				fprintf( stderr, "(%8s) %p", type, lua_touserdata( L, i ) );
+				fprintf( stderr, "(%s) %p", type, lua_touserdata( L, i ) );
 			else if ( t == LUA_TNIL ||  t == LUA_TNONE )
-				fprintf( stderr, "(%8s) %p", type, lua_topointer( L, i ) );
+				fprintf( stderr, "(%s) %p", type, lua_topointer( L, i ) );
 			else if ( t == LUA_TTABLE ) {
 			#if 1
-				fprintf( stderr, "(%8s) %p\n", type, lua_topointer( L, i ) );
+				fprintf( stderr, "(%s) %p\n", type, lua_topointer( L, i ) );
 				(*sd) ++, (*pos) += 2;
 				lua_dumptable( L, pos, sd );
 				(*sd) --, (*pos) -= 2;
@@ -90,8 +91,9 @@ void lua_stackdump ( lua_State *L ) {
 
 		if ( t == LUA_TSTRING )
 			fprintf( stderr, "(%8s) %s", type, lua_tostring( L, pos ));
-		else if ( t == LUA_TFUNCTION )
-			fprintf( stderr, "(%8s) %p", type, (void *)lua_tocfunction( L, pos ) );
+		else if ( t == LUA_TFUNCTION ) {
+			fprintf( stderr, "(%8s) %d", type, pos /*(void *)lua_tocfunction( L, pos )*/ );
+		}
 		else if ( t == LUA_TNUMBER )
 			fprintf( stderr, "(%8s) %lld", type, (long long)lua_tointeger( L, pos ));
 		else if ( t == LUA_TBOOLEAN)
@@ -284,13 +286,10 @@ static int ztable_lua_iterator ( zKeyval *kv, int i, void *p ) {
 }
 
 
-//retire the old version, use lt_exec_complex...
-//place this on the thing, at index x with key <key> (if null, then simply place
-//all values on the table... and don't worry about it)
-//Convert tables from zTable to an actual table...
-int ttable_to_lua ( lua_State *L, int index, zTable *t ) {
+//Copy all records from a zTable to a Lua table at any point in the stack.
+int ttable_to_lua ( lua_State *L, zTable *t ) {
 	//Define a name for result set
-	const char name[] = "model";
+	//const char name[] = "model";
 	short ti[ 64 ] = { 0 };
 	struct ttl_t tx = { L, ti, 0 };	
 
@@ -309,8 +308,6 @@ int ttable_to_lua ( lua_State *L, int index, zTable *t ) {
 		return 0;
 	}
 
-	//lua_stackdump( L );
-	lua_setglobal( L, name );
 	return 1;
 }
 
@@ -620,23 +617,34 @@ int lua_handler (struct HTTPBody *req, struct HTTPBody *res ) {
 			fprintf( stderr, "model file: %s\n", f );
 			fprintf( stderr, "model ptr: %p\n", zmodel );
 			char err[ 2048 ] = { 0 }, msymname[ 1024 ] = { 0 };
-			int valcount = 0;
-		
-		#if 1
-			//Now we check for mkey in the registry and pull that
-			//(This is how we tell if there is any model data or not) 
-		#else
+			int ircount = 0, tcount = 0; 
+
 			//If there are any values, they need to be inserted into Lua env
-			if ( lt_countall( zmodel ) > 1 ) { 
+			if ( lt_countall( zmodel ) <= 1 ) {
+			#if 0
+				lua_stackdump( L );
+				lua_pushnumber( L, -1 );
+				lua_stackdump( L );
+				lua_setglobal( L, mkey );
+				lua_stackdump( L );
+			#endif
+			}
+			else {
+				FPRINTF( "A model is present.  Add to global...\n" );
 				//If we fail to insert, this is a model error and worthy of a 500...
-				if ( !ttable_to_lua( L, 1, zmodel ) )
+				if ( !ttable_to_lua( L, zmodel ) ) {
 					return http_error( res, 500, "Error converting original model!" );
-				else {
-					//The zTable model should be destroyed here...
-					0;
+				}
+			
+				//Make it global	
+				lua_setglobal( L, mkey );
+
+				//Destroy and rebuild the zTable model here...
+				lt_free( zmodel );
+				if ( !lt_init( zmodel, NULL, 2048 ) ) {
+					return http_error( res, 500, "Failed to init model table." );
 				}
 			}
-		#endif
 
 			//Open the file that will execute the model
 			if ( !lua_exec_file( L, f, err, sizeof( err ) ) ) {
@@ -645,74 +653,36 @@ int lua_handler (struct HTTPBody *req, struct HTTPBody *res ) {
 
 			//When successfully executed, return with: xf = `basename f` or f += 4;
 			memcpy( msymname, &f[4], strlen( f ) - 8 );
-			valcount = lua_gettop( L );
-			FPRINTF( "Execution of '%s' returned %d values\n", msymname, valcount );
+			ircount = lua_gettop( L );
+			FPRINTF( "Execution of '%s' returned %d values\n", msymname, ircount );
 	
-		#if 0
-			//This is fairly difficult for some reason...
-			//What exactly happened here?	
-			int px;
-			px = lua_getfield( L, LUA_REGISTRYINDEX, mkey );
-			FPRINTF( "lua_getfield = %d\n", px );
-			
-			//Yet more debugging
-			lua_stackdump( L );
-			getchar();
-
-		px = lua_getfield( L, LUA_REGISTRYINDEX, mkey );
-FPRINTF( "lua_getfield = %d\n", px );
-getchar();
-//1. Copy stack to ztable, retrieve model, then ztable to model;
-//2. Grab model from registry, insert AT THE BEGINNING, and put each 
-//	 result into model, and save model to reg again
-			//Get model from registry... (might need to check if it exists first)	
-			if ( 0 ) {
-				lua_pushstring( L, mkey );
-				lua_pushlightuserdata( L, (void *)mkey );	 //seems better...
-				lua_gettable( L, LUA_REGISTRYINDEX );
-				//Is the REG table automatically on the stack???
-
-				lua_insert( L, 1 ); //puts the model at the beginning
-			}
-
-		#if 0	
-			//Dump stack should show model table and all of the results if any
-			lua_stackdump( L );
-
-			//Aggregate all of the stack values on the first key
-			lua_agg_vals_yo( L, 1 );
-
-			//Dump stack should show model table only
-			lua_stackdump( L );
-
-			//Add string to the stack and place it at the beginning	
-			lua_pushlightuserdata( L, (void *)mkey );	 
-			lua_insert( L, 1 );  //inserts the string at the beginning
-
-			//Dump stack should show string & model table
-			lua_stackdump( L );
-
-			//Put it back on reg
-			lua_settable( L, LUA_REGISTRYINDEX );
-
-			//Dump stack should show ... nothing!
-			lua_stackdump( L );
-
-		#endif
-		#endif
-	
-		#if 1
 			//Debugging's sake
 			lua_stackdump( L );
 
-			//Values directly returned from execution should be added.  In addition to values
-			//from global 'model'...
+			//Check for model in Lua's global environment and convert that as well
+			//.... yay
+			lua_getglobal( L, mkey );
+			if ( lua_isnil( L, -1 ) ) {
+				FPRINTF( "No previous model found.\n" );
+				lua_pop( L, 1 );
+				//Debugging's sake
+				//TODO: Is pushing nil to the front, then this could be failing for that reason.
+				lua_stackdump( L );
+			}
+			else {
+				FPRINTF( "Re-inserting model values (if any)\n" ); 
+				lua_stackdump( L );
+			}
 
+			tcount = lua_gettop( L );
+			FPRINTF( "Total values on stack = %d\n", tcount );
+			getchar();
+		
+		#if 1
 			//Add a key
-			lt_addtextkey( zmodel, mkey );
-			lt_descend( zmodel );
-
-			for ( int vi = 1; vi <= valcount; vi++ ) {
+			//lt_addtextkey( zmodel, mkey );
+			//lt_descend( zmodel );
+			for ( int vi = 1; vi <= tcount; vi++ ) {
 				FPRINTF( "Adding value at pos %d from stack.\n", vi );
 				if ( lua_isstring( L, vi ) ) 
 					lt_addtextkey( zmodel, msymname ), lt_addtextvalue( zmodel, lua_tostring( L, vi ));
@@ -743,12 +713,14 @@ getchar();
 				}
 			}
 
-			//Finish the encompassing table, lock keys for hashing
-			lt_ascend( zmodel );
-			lt_lock( zmodel );
+			//Finish the encompassing table 
+			//lt_ascend( zmodel );
+
+			//lock keys for hashing
+			//lt_lock( zmodel );
 
 			//Remove the values added
-			lua_pop( L, valcount );
+			lua_pop( L, tcount );
 
 			//Debugging
 			fprintf( stderr, "MODEL AFTER EXECUTION of %s\n", f );
