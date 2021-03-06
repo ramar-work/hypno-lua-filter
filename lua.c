@@ -243,8 +243,8 @@ static int ztable_lua_iterator ( zKeyval *kv, int i, void *p ) {
 	//Push key 
 	if ( k.type == ZTABLE_NON )
 		return 0;	
-	else if ( k.type == ZTABLE_INT )
-		lua_pushnumber( x->state, k.v.vint );				
+	else if ( k.type == ZTABLE_INT ) //Arrays start at 1 in Lua, so increment by 1
+		lua_pushnumber( x->state, k.v.vint + 1 );				
 	else if ( k.type == ZTABLE_FLT )
 		lua_pushnumber( x->state, k.v.vfloat );				
 	else if ( k.type == ZTABLE_TXT )
@@ -290,9 +290,11 @@ static int ztable_lua_iterator ( zKeyval *kv, int i, void *p ) {
 int ttable_to_lua ( lua_State *L, zTable *t ) {
 	//Define a name for result set
 	//const char name[] = "model";
-	short ti[ 64 ] = { 0 };
+	short ti[ 64 ] = { 0 }; 
+	short *xi = ti;
 	struct ttl_t tx = { L, ti, 0 };	
 
+#if 1
 	//Set the pointer to the state	
 	t->ptr = &tx;
 
@@ -307,7 +309,58 @@ int ttable_to_lua ( lua_State *L, zTable *t ) {
 	if ( tx.index < ( t->count - 1 ) ) {
 		return 0;
 	}
+#else
+	//Push a table and increase Lua's "save table" index
+	lua_newtable( L );
+	*ti = 1;
 
+	//Loop through all values and copy
+	lt_reset( t );
+	for ( zKeyval *kv = NULL; ( kv = lt_next( t ) ) == NULL ; ) {
+		zhValue k = kv->key, v = kv->value;
+
+		//Push key 
+		if ( k.type == ZTABLE_NON )
+			return 1;	
+		else if ( k.type == ZTABLE_INT ) //Arrays start at 1 in Lua, so increment by 1
+			lua_pushnumber( L, k.v.vint + 1 );				
+		else if ( k.type == ZTABLE_FLT )
+			lua_pushnumber( L, k.v.vfloat );				
+		else if ( k.type == ZTABLE_TXT )
+			lua_pushstring( L, k.v.vchar );
+		else if ( kv->key.type == ZTABLE_BLB)
+			lua_pushlstring( L, (char *)k.v.vblob.blob, k.v.vblob.size );
+		else if ( k.type == ZTABLE_TRM ) {
+			xi--;	
+			lua_settable( L, *xi );
+		}
+
+		//Push value
+		if ( v.type == ZTABLE_NUL )
+			;
+		else if ( v.type == ZTABLE_USR )
+			lua_pushstring( L, "usrdata received" );
+		else if ( v.type == ZTABLE_INT )
+			lua_pushnumber( L, v.v.vint );				
+		else if ( v.type == ZTABLE_FLT )
+			lua_pushnumber( L, v.v.vfloat );				
+		else if ( v.type == ZTABLE_TXT )
+			lua_pushstring( L, v.v.vchar );
+		else if ( v.type == ZTABLE_BLB )
+			lua_pushlstring( L, (char *)v.v.vblob.blob, v.v.vblob.size );
+		else if ( v.type == ZTABLE_TBL ) {
+			lua_newtable( L );
+			*( ++xi ) = lua_gettop( L );
+		}
+		else /* ZTABLE_TRM || ZTABLE_NON */ {
+			return 0;
+		}
+
+		if ( v.type != ZTABLE_NON && v.type != ZTABLE_TBL && v.type != ZTABLE_NUL ) {
+			lua_settable( L, *xi );
+		}
+	}
+#endif
 	return 1;
 }
 
@@ -393,7 +446,7 @@ int lua_to_table( lua_State *L, int index, zTable *t ) {
 
 		//Get key (remember Lua indices always start at 1.  Hence the minus.
 		if (( kt = lua_type( L, -2 )) == LUA_TNUMBER )
-			lt_addintkey( t, lua_tointeger( L, -2 ) );
+			lt_addintkey( t, lua_tointeger( L, -2 ) - 1 );
 		else if ( kt  == LUA_TSTRING ) {
 			lt_addtextkey( t, (char *)lua_tostring( L, -2 ));
 		}
@@ -614,10 +667,12 @@ int lua_handler (struct HTTPBody *req, struct HTTPBody *res ) {
 		const char *f = (*m)->file;
 
 		if ( *f == 'a' ) {
-			fprintf( stderr, "model file: %s\n", f );
-			fprintf( stderr, "model ptr: %p\n", zmodel );
+			//Define
 			char err[ 2048 ] = { 0 }, msymname[ 1024 ] = { 0 };
 			int ircount = 0, tcount = 0; 
+
+			//Debugging
+			fprintf( stderr, "model { file = %s, ptr = %p\n", f, zmodel  );
 
 			//If there are any values, they need to be inserted into Lua env
 			if ( lt_countall( zmodel ) > 1 ) {
@@ -667,7 +722,7 @@ int lua_handler (struct HTTPBody *req, struct HTTPBody *res ) {
 
 			tcount = lua_gettop( L );
 			FPRINTF( "Total values on stack = %d\n", tcount );
-			getchar();
+			//getchar();
 		
 		#if 1
 			//Add a key
@@ -705,12 +760,6 @@ int lua_handler (struct HTTPBody *req, struct HTTPBody *res ) {
 				}
 			}
 
-			//Finish the encompassing table 
-			//lt_ascend( zmodel );
-
-			//lock keys for hashing
-			//lt_lock( zmodel );
-
 			//Remove the values added
 			lua_pop( L, tcount );
 
@@ -718,7 +767,7 @@ int lua_handler (struct HTTPBody *req, struct HTTPBody *res ) {
 			fprintf( stderr, "MODEL AFTER EXECUTION of %s\n", f );
 			lt_dump( zmodel );
 		#endif
-			getchar();
+			//getchar();
 		}
 	}
 
@@ -726,9 +775,8 @@ int lua_handler (struct HTTPBody *req, struct HTTPBody *res ) {
 	lt_lock( zmodel );
 	fprintf( stderr, "DUMP FULL MODEL AFTER ALL FILES\n" );
 	lt_dump( zmodel );
-	lt_free( zmodel );
 
-#if 0	
+#if 1
 	//Load all views
 	for ( struct imvc_t **v = pp.imvc_tlist; *v; v++ ) {
 		const char *f = (*v)->file;
@@ -739,7 +787,7 @@ int lua_handler (struct HTTPBody *req, struct HTTPBody *res ) {
 			zRender * rz = zrender_init();
 			zrender_set_default_dialect( rz );
 			zrender_set_fetchdata( rz, zmodel );
-			if ( !( src = read_file( *v, &len, err, sizeof( err ) )	) || !len ) {
+			if ( !( src = read_file( f, &len, err, sizeof( err ) )	) || !len ) {
 				return http_error( res, 500, "%s", err );
 			}
 			if ( !( render = zrender_render( rz, src, strlen((char *)src), &renlen ) ) ) {
@@ -752,21 +800,28 @@ int lua_handler (struct HTTPBody *req, struct HTTPBody *res ) {
 	}
 #endif
 
+	//Destroy mvc list
 	free_mvc_list( (void **)pp.imvc_tlist );
 
-#if 0
-	//Return the finished message if we got this far
+	//Model can contain other things like status, content-type, etc
+	//Certain keys will cause other things to happen
+	//... 
+
+	//Set needed info for the response structure
 	res->clen = clen;
 	http_set_status( res, 200 ); 
 	http_set_ctype( res, "text/html" );
 	http_set_content( res, content, clen ); 
+
+	//Return the finished message if we got this far
 	if ( !http_finalize_response( res, err, sizeof(err) ) ) {
 		return http_error( res, 500, err );
 	}
 
-	//Destroying everything is kind of tough...
-	free( content );
-#endif
+	//Destroy full model
+	lt_free( zmodel );
+
+	//Destroy Lua
 	lua_close( L );
 	return 1;
 }
