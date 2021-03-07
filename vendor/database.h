@@ -55,9 +55,27 @@
 #ifndef HDATABASE_H
 #define HDATABASE_H
 
+//Structure used for something else...
+typedef struct dbvalue_t {
+	const char *field;
+	void *value;
+	int vlen;
+	zhType type;
+} dbvalue_t;
+
+
+//Macros could really be improved here...
 void *db_open( const char *, char *, int ) ;
 void *db_close( void **, char *, int );
 zTable *db_exec( void *, const char *, void **, char *, int ) ;
 zTable *db_to_table ( const char *filename, const char *query );
+dbvalue_t ** generate_bind_args ( dbvalue_t **records, void *p, int len, zhType type );
+
+#define db_query_file( ptr, file )
+
+#define db_insert( ptr, file )
+
+#define db_query_str( ptr, str )
+
 
 #endif

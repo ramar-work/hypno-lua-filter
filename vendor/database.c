@@ -50,6 +50,7 @@ void *db_open( const char *string, char *err, int errlen ) {
 }
 
 
+
 void *db_close( void **ptr, char *err, int errlen ) {
 	if ( sqlite3_close( *ptr ) != SQLITE_OK ) {
 		snprintf( err, errlen, "%s", sqlite3_errmsg( *ptr ) ); 
@@ -58,6 +59,13 @@ void *db_close( void **ptr, char *err, int errlen ) {
 	*ptr = NULL;
 	return (int *)1;
 }
+
+
+
+dbvalue_t ** generate_bind_args ( dbvalue_t **records, void *p, int len, zhType type ) {
+	return NULL;
+}
+
 
 
 zTable *db_exec( void *ptr, const char *query, void **records, char *err, int errlen ) { 
@@ -140,12 +148,6 @@ zTable *db_exec( void *ptr, const char *query, void **records, char *err, int er
 	sqlite3_finalize( stmt );
 	return t;
 }
-
-
-zTable * db_to_table ( const char *filename, const char *query ) {
-	return 0;
-}
-
 
 
 
