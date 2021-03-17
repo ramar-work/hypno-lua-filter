@@ -4,8 +4,16 @@ DFLAGS = -g -O0 -DDEBUG_H -fsanitize=address -fsanitize-undefined-trap-on-error
 CFLAGS = -Wall -Werror -Wno-unused -Wno-format-security -fPIC -std=c99 -Ivendor
 SFLAGS = -Wall -Werror -Wno-unused -Wno-format-security -std=c99 -Ivendor
 CC = clang
-SRC = vendor/zhttp.c vendor/zmime.c vendor/zwalker.c vendor/database.c \
-	vendor/ztable.c vendor/zrender.c vendor/router.c vendor/megadeth.c
+SRC = \
+	vendor/zhttp.c \
+	vendor/zmime.c \
+	vendor/zwalker.c \
+	vendor/database.c \
+	vendor/ztable.c \
+	vendor/zrender.c \
+	vendor/router.c \
+	src/test.c \
+	vendor/megadeth.c
 OBJ = $(SRC:.c=.o)
 TARGET=
 
@@ -14,7 +22,7 @@ TARGET=
 lua: SRC += lua.c
 lua: $(OBJ)
 	$(CC) $(CFLAGS) -c -o lua.o lua.c
-	$(CC) -DLT_DEVICE=1 $(SFLAGS) -shared -llua -lsqlite3 -o bin/app.so $(OBJ)
+	$(CC) $(SFLAGS) -shared -llua -lsqlite3 -o bin/app.so $(OBJ)
 
 
 lmain: SRC += lua.c

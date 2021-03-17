@@ -1,7 +1,8 @@
 -- config.lua
 return {
 	static = {
-		"/assets", "/robots.txt"
+		"/assets"
+	, "/robots.txt"
 	}
 ,	db = "yamama"
 , title = "localhost"

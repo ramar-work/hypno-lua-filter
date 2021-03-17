@@ -1,23 +1,16 @@
-- Always a fuckin' todo file...
 
 
+- you might not be able to finish all this... but ca
 
-x extract the host from the thing (no port number)
+1. Test out that zdb_to_ztable is working.
+	(B/c of SQL)
+2. Read everything in HTTP (should be easy)
+	(This should not take long, save to http table and make it global)
+3. Get SSL rework working
+4. Lua lib interface stuff... it's an easy language, but lacks a lot of nice facilities
+	(Basic error handling)
+	(Tables and other values)
+5. Finallly, you can probably start work on packages...
 
-#if 0
-	- try fixing up the Lua backend
-		(easy to do all the other stuff)
-#else
-	- check the host against the routes structure
-	- call the right route (how do you call the home route?)
-#endif
-
-	? can I turn a table to HTML?
-		get some basic queries working
-
-	? get static stuff working
-
-
-
-
+This can't take more than 2 days (so Saturday or something)
 

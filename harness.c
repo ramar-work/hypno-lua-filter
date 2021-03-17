@@ -244,6 +244,12 @@ int main ( int argc, char * argv[] ) {
 		free( arg.body ); 
 	}
 
+	//Die on unspecified symbols...
+	if ( !arg.symbol ) {
+		fprintf( stderr, "%s\n", "Symbol not specified." );
+		return 1; 
+	}
+
 	//Assemble a message from here...
 	if ( !http_finalize_request( &req, err, sizeof( err ) ) ) {
 		fprintf( stderr, "%s\n", err );

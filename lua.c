@@ -1,8 +1,11 @@
 #include "lua.h"
+#include "../src/test.h"
 
 
 #define FPRINTF( ... ) \
 	fprintf( stderr, __VA_ARGS__ )
+
+void lua_stackdump ( lua_State *L );
 
 static const char mkey[] = "model";
 
@@ -36,6 +39,33 @@ struct mvc_t {
 	} **imvc_tlist;
 };
 
+
+struct lua_fset {
+	const char *namespace;
+	struct luaL_Reg *functions;
+} functions[] = {
+	{ "test", test }
+,	{ NULL }
+};
+
+
+//Should return an error
+int lua_loadlibs( lua_State *L, struct lua_fset *set ) {
+	for ( ; set->namespace; set++ ) {
+		lua_newtable( L );
+		for ( struct luaL_Reg *f = set->functions; f->name; f++ ) {
+			FPRINTF( "Registering function %s.%s\n", set->namespace, f->name );
+			lua_pushstring( L, f->name );
+			lua_pushcfunction( L, f->func );	
+			lua_settable( L, 1 );
+		}
+		lua_setglobal( L, set->namespace );
+		//a test suite can very easily be a list of strings that come in a certain way
+		//and have an expected output...	
+		//getchar();
+	}
+	return 1;
+}
 
 
 #ifdef DEBUG_H
@@ -506,6 +536,10 @@ int lua_handler (struct HTTPBody *req, struct HTTPBody *res ) {
 	//Open the standard libraries (once)
 	luaL_openlibs( L );
 
+	//...
+	lua_loadlibs( L, functions );
+
+return 0;
 	//Open our extra libraries too (if requested via config file...)
 	//load_lua_libs( L );
 
