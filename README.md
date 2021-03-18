@@ -1,20 +1,43 @@
-# app.hypno
+# levanter-lua-filter
 
-This is an example app written in C with a few different routes.
-It's mostly for testing purposes, but a real app can be written with this tooling.
+This is an example app written in Lua.  
 
 
-## Files
 
-bin/app.so - The app in shared library form.
+## Files & Directories
 
-tests/dylib.c - Tooling to test the created library.
+app/\*.lua - Models written with Lua.
 
-main.c - The source code of the app.
+misc/\* - SSL certificates, logs and more go here.
 
-static/ - Files that will be served directly.
+sql/\* - SQL files for execution.
+
+static/\*  - All of the static assets that come with the project.
+
+tests/\* - All tests are here.
 
 vendor/ - Local copy of dependencies that aren't distributed with Autoconf yet.
 
-Makefile - Recipes to create the shared library and dynamic library tester. 
+views/\* - Views written in Mustache.
+
+Makefile - Recipes to create the shared library. 
+
+config.lua - Configuration file for website
+
+
+
+## Building 
+
+The default Makefile builds a shared object.
+
+
+
+## Usage
+ 
+
+
+
+
+
+
 
