@@ -50,8 +50,8 @@ dltest:
 	$(CC) -Wall -Werror -ldl -Ivendor -o dylib dylib.c && ./dylib ./app.so app
 
 # test - Compile tests for files in tests/
-test:
-	$(CC) -Wall -Werror -Ivendor -o bin/router vendor/zwalker.c vendor/router.c tests/router-test.c
+test: $(OBJ)
+	$(CC) $(CFLAGS) -llua -lsqlite3 -o bin/test $(OBJ) tests.c
 
 # test-debug - Compile tests for files in tests/
 test-debug:

@@ -1,7 +1,12 @@
 #include "test.h"
 
 int test_string_arg ( lua_State *L ) {
-	lua_isstring( L, 1 );
+	if ( !lua_isstring( L, 1 ) || lua_isnumber( L, 1 ) ) {
+		//pop the value...
+		lua_pop( L, 1 );
+		lua_error( L, "Got a bad value." );
+		return 0; 
+	}
 	return 1;
 }
 

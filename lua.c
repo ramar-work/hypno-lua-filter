@@ -1,5 +1,5 @@
 #include "lua.h"
-#include "../src/test.h"
+#include "src/test.h"
 
 
 #define FPRINTF( ... ) \
@@ -44,7 +44,7 @@ struct lua_fset {
 	const char *namespace;
 	struct luaL_Reg *functions;
 } functions[] = {
-	{ "test", test }
+	{ "test", test_set }
 ,	{ NULL }
 };
 
@@ -60,11 +60,14 @@ int lua_loadlibs( lua_State *L, struct lua_fset *set ) {
 			lua_settable( L, 1 );
 		}
 		lua_setglobal( L, set->namespace );
-		//a test suite can very easily be a list of strings that come in a certain way
-		//and have an expected output...	
-		//getchar();
 	}
 	return 1;
+}
+
+
+//checking args is putting me in a weird zone... 
+int lua_getarg( ) {
+	return ZLUA_NO_ERROR;
 }
 
 

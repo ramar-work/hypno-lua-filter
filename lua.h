@@ -12,5 +12,12 @@
 
 #ifndef LLUA_H
 #define LLUA_H
+
+enum zlua_error {
+	ZLUA_NO_ERROR,
+	ZLUA_MISSING_ARGS,
+	ZLUA_INCORRECT_ARGS
+};
+
 int lc ( struct HTTPBody *, struct HTTPBody * );
 #endif
