@@ -1,6 +1,6 @@
-# levanter-lua-filter
+# hypno-lua-filter
 
-This is an example app written in Lua.  
+This is an example Hypno web app written in Lua.  
 
 
 
@@ -30,14 +30,9 @@ config.lua - Configuration file for website
 
 The default Makefile builds a shared object.
 
+Run `make` with no arguments at the top level to build it.
 
-
-## Usage
- 
-
-
-
-
+Tests can be run using `make test`.
 
 
 
