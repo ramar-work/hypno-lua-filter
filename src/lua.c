@@ -55,8 +55,6 @@ int lua_loadlibs( lua_State *L, struct lua_fset *set, int standard ) {
 			lua_pushcfunction( L, f->func );	
 			lua_settable( L, 1 );
 		}
-fprintf( stderr, "Loaded Lua functions...\n" );
-lua_stackdump( L );
 		lua_setglobal( L, set->namespace );
 	}
 	return 1;

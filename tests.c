@@ -70,24 +70,26 @@ int main ( int argc, char *argv[] ) {
 		return 0;
 	}
 
-
 	if ( !lua_loadlibs( L, functions, 1 ) ) {
 		fprintf( stderr, PP ": Failed to load external Lua libraries.\n" );
 		return 0;
 	}
 
-#if 1
 	//Go through the tests and run them
 	for ( struct test_t *t = tests; t->string; t++ ) {
 		fprintf( stderr, "running test '%s' ", t->string );
 		int status = luaL_dostring( L, t->string );
 		fprintf( stderr, "status of block = %d\n", status );
 
-getchar();
-		//Need to see whatever the environment said
-		lua_stackdump( L );
+		//In case of error, see the value and pop everything
+		if ( lua_gettop( L ) > 0 ) {
+			const char *err = lua_tostring( L, 1 );
+			fprintf( stderr, "'%s'\n", err );
+			lua_pop( L, lua_gettop( L ) );
+		}
 	}
-#endif
+
+	//Close stuff
 	lua_close( L );  
 	return 0;
 }
