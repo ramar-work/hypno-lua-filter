@@ -39,7 +39,6 @@
  * 
  * ------------------------------------------- */
 #include "zdb.h"
-#include <zwalker.h>
 
 #ifdef ZDB_ENABLE_SQLITE
  #include <sqlite3.h>
@@ -106,16 +105,20 @@ static void * zdb_init( zdb_t *zdb, zdbb_t type ) {
 	memset( zdb->err, 0, ZDB_ERRBUF_LEN );
 	zdb->type = type;
 
+#ifdef ZDB_ENABLE_SQLITE
 	if ( zdb->type == ZDB_SQLITE ) {
 		zdb->open = zdb_sqlite_open; 
 		zdb->close = zdb_sqlite_close;
 		zdb->exec = zdb_sqlite_exec;
 	}
+#endif
+#ifdef ZDB_ENABLE_MYSQL
 	else if ( zdb->type == ZDB_MYSQL ) {
 		zdb->open = zdb_mysql_open; 
 		zdb->close = zdb_mysql_close;
 		zdb->exec = zdb_mysql_exec;
 	}
+#endif
 	else {
 		zdb->error = ZDB_ERROR_UNSUPPORTED_BACKEND;
 		return NULL;
@@ -191,6 +194,7 @@ static zdbv_t * zdbv_add_to_set ( zdbv_t ***list ) {
 }
 
 
+
 void zdbv_dump ( zdbv_t **list ) {
 	int a = 1;
 	for ( zdbv_t **r = list; r && *r; r++ ) {
@@ -202,13 +206,7 @@ void zdbv_dump ( zdbv_t **list ) {
 
 
 
-//Convert the results
-zTable * zdb_to_ztable ( zdb_t *zdb ) {
-	return NULL;
-}
-
-
-const char * zdb_dupstr ( const char *a ) {
+static const char * zdb_dupstr ( const char *a ) {
 	const char *bb = malloc( strlen( a ) + 1 );
 	memset( (void *)bb, 0, strlen( a ) + 1 );
 	memcpy( (void *)bb, a, strlen( a ) );
@@ -282,107 +280,6 @@ zdbv_t ** zdb_bind ( zdb_t *zdb, zdbv_t **recs, char *n, void *p, int len, zhTyp
 
 
 
-#if 0
-zTable *zdb_sqlite_exec_old( void *ptr, const char *query, zdbv_t **records, char *err, int errlen ) { 
-	int columnCount = 0, status = 0;
-	zTable *t = NULL;
-	sqlite3_stmt *stmt = NULL;
-	const char *unused = NULL;
-	const char *columns[ 127 ] = { 0 };
-
-	//Allocate a table...
-	if ( !( t = malloc( sizeof( zTable ) ) ) || !lt_init( t, NULL, 1024 ) ) {
-		snprintf( err, errlen, "%s\n", "COULD NOT ALLOCATE SPACE FOR TABLE!" ); 
-		return NULL;
-	}
-	
-	//Open a driver
-	if ( !ptr ) {
-		snprintf( err, errlen, "%s\n", "NO DATABASE HANDLE SPECIFIED!" ); 
-		return NULL;
-	}
-
-	//...
-	if ( !query || strlen( query ) < 3 ) {
-		snprintf( err, errlen, "%s\n", "QUERY NOT SPECIFIED!" ); 
-		return NULL;
-	}
-
-	//Prepare the statment
-	if ( ( status = sqlite3_prepare_v2( ptr, query, -1, &stmt, &unused ) ) != SQLITE_OK ) {
-		snprintf( err, errlen, "SQLITE3 PREPARE ERROR: %s\n", sqlite3_errmsg( ptr ) );
-		return NULL;
-	}
-
-	//Get the column names (try to clone just once)
-	if ( ( columnCount = sqlite3_column_count( stmt ) ) > 127 ) {
-		snprintf( err, errlen, "RESULT SET COLUMN COUNT TOO LARGE (>127)\n" );
-		return NULL;
-	}
-
-	//Start stepping through
-	fprintf( stderr, "SQL Column Count: %d\n", columnCount );
-	for ( int i=0; i < columnCount; i++ ) {
-		columns[ i ] = sqlite3_column_name( stmt, i );
-	}
-
-	//Save each result
-	if ( columnCount ) {
-		lt_addtextkey( t, "results" );
-		lt_descend( t );
-		for ( int row = 0; sqlite3_step( stmt ) != SQLITE_DONE; row++ ) {
-			lt_addintkey( t, row );
-			lt_descend( t );
-
-			for ( int i=0, len; i < sqlite3_data_count( stmt ); i++ ) {
-				const unsigned char *bytes = sqlite3_column_blob( stmt, i );
-
-				if ( !lt_addtextkey( t, columns[ i ] ) ) {
-					snprintf( err, errlen, "FAILED TO ADD TEXT KEY\n" );
-					return NULL;
-				}
-			
-				if ( !( len = sqlite3_column_bytes( stmt, i )) ) {
-					lt_addtextvalue( t, "" );
-				}
-				else {
-					if ( !lt_addblobdvalue( t, bytes, len ) ) {
-						snprintf( err, errlen, "FAILED TO ADD DATABASE VALUE AT ROW %d:COL %d (%s)\n", i, row, columns[ i ] );
-						return NULL;
-					}
-				}
-
-				lt_finalize( t );
-			}
-			lt_ascend( t );
-		}
-
-		//Finalize the table.
-		lt_ascend( t );
-		lt_lock( t );
-	}
-
-	//Need this to close out the database.
-	//sqlite3_finalize( stmt );
-	return t;
-}
-#endif
-
-
-
-void zdbconn_print ( zdbconn_t *conn ) {
-	fprintf( stderr, "username: %s\n", conn->username );
-	fprintf( stderr, "password: %s\n", conn->password );
-	fprintf( stderr, "hostname: %s\n", conn->hostname );
-	fprintf( stderr, "dbname: %s\n", conn->dbname );
-	fprintf( stderr, "port: %d\n", conn->port );
-	fprintf( stderr, "unixsock: %s\n", conn->unixsock );
-	fprintf( stderr, "options: %p\n", conn->options );
-	//fprintf( stderr, "flags: %p\n", conn->flags );
-}
-
-
-
 static int zdb_check_number ( char *ptr, int len ) {
 	for ( ; *ptr; ptr++ ) {
 		if ( !strchr( "0123456789", *ptr ) ) return 0;
@@ -451,7 +348,7 @@ zdbconn_t * zdb_init_conn ( zdbconn_t *conn, const char *connstr, char *err, int
 zTable * zdb_to_ztable ( zdb_t *zdb, const char *key ) {
 	zTable *t = NULL;
 	const int mod = 4056;
-	int a=0;
+	int row = 0;
 
 	//TODO: mod needs to be based on the result count
 	if ( !( t = malloc( sizeof( zTable ) ) ) ) {
@@ -467,52 +364,28 @@ zTable * zdb_to_ztable ( zdb_t *zdb, const char *key ) {
 	lt_descend( t );
 
 	//Loop through and save each value 
-	for ( zdbv_t **set = zdb->results; set && *set; a++ ) {
-		if ( !a ) {	
+	for ( zdbv_t **set = zdb->results; set && *set; row++ ) {
+		if ( !row ) {	
 			lt_addintkey( t, row );
 			lt_descend( t );
 		}
 
 		//TODO: Probably not a super big perf hit, but highly consider *set->field == '*' or something...
-		if ( !strcmp( endset, set->field ) ) {
+		if ( !strcmp( endset, (*set)->field ) ) {
 			lt_ascend( t );
-			a = 0;
+			row = 0;
 			continue;	
 		}
 	
-		lt_addtextkey( t, set->field );
-		lt_addblobvalue( t, set->value, set->len );
+		lt_addtextkey( t, (*set)->field );
+		( !(*set)->len ) ? lt_addtextvalue( t, "" ) : lt_addblobdvalue( t, (*set)->value, (*set)->len );
 		lt_finalize( t );
 	}
-#if 0
-	for ( int row = 0; sqlite3_step( stmt ) != SQLITE_DONE; row++ ) {
-		lt_addintkey( t, row );
-		lt_descend( t );
-
-		for ( int i=0, len; i < sqlite3_data_count( stmt ); i++ ) {
-			const unsigned char *bytes = sqlite3_column_blob( stmt, i );
-
-			if ( !lt_addtextkey( t, columns[ i ] ) ) {
-				snprintf( err, errlen, "FAILED TO ADD TEXT KEY\n" );
-				return NULL;
-			}
-		
-			if ( !( len = sqlite3_column_bytes( stmt, i )) ) {
-				lt_addtextvalue( t, "" );
-			}
-			else {
-				if ( !lt_addblobdvalue( t, bytes, len ) ) {
-					snprintf( err, errlen, "FAILED TO ADD DATABASE VALUE AT ROW %d:COL %d (%s)\n", i, row, columns[ i ] );
-					return NULL;
-				}
-			}
-
-			lt_finalize( t );
-		}
-		lt_ascend( t );
-	}
-#endif
-	return NULL; 
+	
+	//Close the table and lock it
+	lt_ascend( t );
+	lt_lock( t );
+	return t; 
 }
 #endif
 
@@ -926,4 +799,19 @@ void * zdb_mysql_exec( zdb_t *zdb, const char *query, zdbv_t **records ) {
 }
 #endif
 
+
+
+
+#ifdef DEBUG_H
+void zdbconn_print ( zdbconn_t *conn ) {
+	fprintf( stderr, "username: %s\n", conn->username );
+	fprintf( stderr, "password: %s\n", conn->password );
+	fprintf( stderr, "hostname: %s\n", conn->hostname );
+	fprintf( stderr, "dbname: %s\n", conn->dbname );
+	fprintf( stderr, "port: %d\n", conn->port );
+	fprintf( stderr, "unixsock: %s\n", conn->unixsock );
+	fprintf( stderr, "options: %p\n", conn->options );
+	//fprintf( stderr, "flags: %p\n", conn->flags );
+}
+#endif
 

@@ -1,5 +1,5 @@
 //tests.c - Should simply check input and output...
-#include "../lua.h"
+#include "src/lua.h"
 
 #define PP "lua-filter-test"
 
@@ -25,15 +25,15 @@ struct test_t {
 	//Using real error codes from argument handler could make a lot of sense
 	int error;
 } tests[] = {
-	{ "test.number( 0 )", 1, ZLUA_NO_ERROR },
-	{ "test.number( 'abc' )", 0, ZLUA_INCORRECT_ARGS },
-	{ "test.number( )", 0, ZLUA_MISSING_ARGS },
-	{ "test.string( 0 )", 1, ZLUA_NO_ERROR },
-	{ "test.string( 'abc' )", 0, ZLUA_INCORRECT_ARGS },
-	{ "test.string( )", 0, ZLUA_MISSING_ARGS },
-	{ "test.table( { a='b', c='d' } )", 1, ZLUA_NO_ERROR },
-	{ "test.table( 'abc' )", 0, ZLUA_INCORRECT_ARGS },
-	{ "test.table( )", 0, ZLUA_MISSING_ARGS },
+	{ "echo.number( 0 )", 1, ZLUA_NO_ERROR },
+	{ "echo.number( 'abc' )", 0, ZLUA_INCORRECT_ARGS },
+	{ "echo.number( )", 0, ZLUA_MISSING_ARGS },
+	{ "echo.string( 0 )", 1, ZLUA_NO_ERROR },
+	{ "echo.string( 'abc' )", 0, ZLUA_INCORRECT_ARGS },
+	{ "echo.string( )", 0, ZLUA_MISSING_ARGS },
+	{ "echo.table( { a='b', c='d' } )", 1, ZLUA_NO_ERROR },
+	{ "echo.table( 'abc' )", 0, ZLUA_INCORRECT_ARGS },
+	{ "echo.table( )", 0, ZLUA_MISSING_ARGS },
 	{ NULL }
 };
 
@@ -65,17 +65,29 @@ int main ( int argc, char *argv[] ) {
 	}
 
 	//Initialize the Lua state
-	L = luaL_newstate();	
+	if ( !( L = luaL_newstate() ) ) {
+		fprintf( stderr, PP ": Failed to initialize new Lua state.\n" );
+		return 0;
+	}
 
+
+	if ( !lua_loadlibs( L, functions, 1 ) ) {
+		fprintf( stderr, PP ": Failed to load external Lua libraries.\n" );
+		return 0;
+	}
+
+#if 1
 	//Go through the tests and run them
 	for ( struct test_t *t = tests; t->string; t++ ) {
 		fprintf( stderr, "running test '%s' ", t->string );
 		int status = luaL_dostring( L, t->string );
-		//w/ the status, I need to compare it
-		//Do I need to take the value from the stack?
-		fprintf( stderr, "status = %d\n", status );
-	}
+		fprintf( stderr, "status of block = %d\n", status );
 
+getchar();
+		//Need to see whatever the environment said
+		lua_stackdump( L );
+	}
+#endif
 	lua_close( L );  
 	return 0;
 }

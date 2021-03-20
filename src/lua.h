@@ -9,6 +9,7 @@
 #include <stdarg.h>
 #include <router.h>
 #include <megadeth.h>
+#include "lib.h"
 
 #ifndef LLUA_H
 #define LLUA_H
@@ -20,4 +21,6 @@ enum zlua_error {
 };
 
 int lc ( struct HTTPBody *, struct HTTPBody * );
+int lua_loadlibs( lua_State *, struct lua_fset *, int );
+void lua_stackdump ( lua_State * );
 #endif

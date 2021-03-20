@@ -38,18 +38,8 @@
  * ---------
  * 
  * ------------------------------------------- */
-#include <ztable.h>
 #include <strings.h>
-
-#if 0
-#ifndef SKIPMYSQL_H
- #include <mysql.h>
-#endif
-
-#ifndef SKIPPGSQL_H
- #include <postgresql.h>
-#endif
-#endif
+#include <zwalker.h>
 
 #ifndef HDATABASE_H
 #define HDATABASE_H
@@ -60,17 +50,18 @@
 
 #define ZDB_MAX_BINDS 256
 
+#define ZDB_ENABLE_EXTENSIONS
+
 #define ZDB_ENABLE_SQLITE
 
-#define ZDB_ENABLE_MYSQL
-
-//#define ZDB_ENABLE_POSTGRESQL
-
-//#define ZDB_ENABLE_ORACLE
+//#define ZDB_ENABLE_MYSQL
 
 #define zdbv_add_item(LIST,ELEMENT,SIZE,LEN) \
 	zdb_add_item_to_list( (void ***)LIST, ELEMENT, sizeof( SIZE ), LEN )
 
+#ifdef ZDB_ENABLE_EXTENSIONS
+ #include <ztable.h>
+#endif 
 
 typedef enum {
 	ZDB_NONE
@@ -81,9 +72,11 @@ typedef enum {
 ,	ZDB_MYSQL
 #endif
 #ifdef ZDB_ENABLE_POSTGRESQL
+	#error "PostgreSQL not yet supported."
 ,	ZDB_POSTGRESQL
 #endif
 #ifdef ZDB_ENABLE_ORACLE
+	#error "Oracle not yet supported."
 ,	ZDB_ORACLE
 #endif
 } zdbb_t ;
@@ -113,6 +106,8 @@ typedef struct zdbconn_t {
 	void **options;
 } zdbconn_t;
 
+
+//The grandaddy of db structures...
 typedef struct zdb_t {
 	void * ptr;  // The pointer to whatever handle is in use...
 	void * (*open)( struct zdb_t *, const char *, char *, int );
@@ -170,6 +165,11 @@ void *zdb_mysql_close( void **, char *, int );
 void *zdb_mysql_exec( zdb_t *, const char *, zdbv_t ** );
 #endif
 
+#ifdef DEBUG_H
+ void zdbconn_print ( zdbconn_t * ) ;
+#else
+ #define zdbconn_print(...)
+#endif
 
 #define zdb_open_sqlite(a,b) 
 #define zdb_open_mysql(a,b) 

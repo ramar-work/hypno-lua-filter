@@ -1,5 +1,4 @@
 #include "lua.h"
-#include "src/test.h"
 
 
 #define FPRINTF( ... ) \
@@ -40,17 +39,14 @@ struct mvc_t {
 };
 
 
-struct lua_fset {
-	const char *namespace;
-	struct luaL_Reg *functions;
-} functions[] = {
-	{ "test", test_set }
-,	{ NULL }
-};
+//Should return an error b/c there are some situations where this does not work.
+int lua_loadlibs( lua_State *L, struct lua_fset *set, int standard ) {
+	//Load the standard libraries
+	if ( standard )	{
+		luaL_openlibs( L );
+	}
 
-
-//Should return an error
-int lua_loadlibs( lua_State *L, struct lua_fset *set ) {
+	//Now load everything written elsewhere...
 	for ( ; set->namespace; set++ ) {
 		lua_newtable( L );
 		for ( struct luaL_Reg *f = set->functions; f->name; f++ ) {
@@ -59,6 +55,8 @@ int lua_loadlibs( lua_State *L, struct lua_fset *set ) {
 			lua_pushcfunction( L, f->func );	
 			lua_settable( L, 1 );
 		}
+fprintf( stderr, "Loaded Lua functions...\n" );
+lua_stackdump( L );
 		lua_setglobal( L, set->namespace );
 	}
 	return 1;
@@ -536,11 +534,8 @@ int lua_handler (struct HTTPBody *req, struct HTTPBody *res ) {
 #endif
 
 #if 1
-	//Open the standard libraries (once)
-	luaL_openlibs( L );
-
 	//...
-	lua_loadlibs( L, functions );
+	lua_loadlibs( L, functions, 1 );
 
 return 0;
 	//Open our extra libraries too (if requested via config file...)
